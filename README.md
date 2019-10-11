@@ -27,5 +27,5 @@ When called as python script `python xmrto_wrapper.py` configure it using cli op
 
 When importing as module `import xmrto_wrapper` environment variables are considered.
 
-##
+## Use as module:
 `test.py` shows how to import as module.
