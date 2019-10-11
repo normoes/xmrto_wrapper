@@ -21,27 +21,8 @@ How to:
   * The API used is `--api v2` by default, so no need to actually set that parameter.
   * The URL used is `--url https://xmr.to` by default, so no need to actually set that parameter.
 
-Configuration:
-  * The XMR.to url can be given as environemnt variable XMRTO_URL
-    - `XMRTO_URL=https://xmr.to python xmrto_wrapper.py -d 3K1jSVxYqzqj7c9oLKXC7uJnwgACuTEZrY -b 0.001`
-  * The XMR.to url can be given as argument (-u, --url)
-    - python create_order.py --url <xmrto_url> --api <api_version> --destination <btc_address> --btc-amount <btc_amount>
-  * If the BTC destination address is set both ways, BTC_ADDRESS has precedence.
-  * The API version can be given as environemnt variable API_VERSION
-  * The API version can be given as argument (-a, --api)
-  * If the API version is set both ways, API_VERSION has precedence.
-  * The BTC destination address can be given as environemnt variable BTC_ADDRESS
-  * The BTC destination address can be given as argument (-d, --destination)
-  * If the BTC destination address is set both ways, BTC_ADDRESS has precedence.
-  * The BTC amount can be given as environemnt variable BTC_AMOUNT
-  * The BTC amount can be given as argument (-b, --btc-amount)
-  * If the BTC amount is set both ways, BTC_AMOUNT has precedence.
-  * The XMR amount can be given as environemnt variable XMR_AMOUNT
-  * The XMR amount can be given as argument (-x, --xmr-amount)
-  * If the XMR amount is set both ways, XMR_AMOUNT has precedence.
-  * It's possible to adda `--debug` flag. It produces additional log messages.
-  * In some (special) cases it's necessary to use a local certificate.
-    - `-- certificate "/usr/local/share/ca-certificates/ansible-base-ca.crt"`
+When called as python script python `xmrto_wrapper.py` configure it using cli options.
+When importing as module `import xmrto_wrapper` environment variables are considered.
 """
 
 import os
@@ -68,17 +49,11 @@ API_VERSION_DEFAULT = "v2"
 XMRTO_URL = os.environ.get("XMRTO_URL", XMRTO_URL_DEFAULT)
 API_VERSION = os.environ.get("API_VERSION", API_VERSION_DEFAULT)
 DESTINATION_ADDRESS = os.environ.get("BTC_ADDRESS", None)
-PAY_AMOUNT = os.environ.get("BTC_AMOUNT", None)
+BTC_AMOUNT = os.environ.get("BTC_AMOUNT", None)
 XMR_AMOUNT = os.environ.get("XMR_AMOUNT", None)
 CERTIFICATE = os.environ.get("XMRTO_CERTIFICATE", None)
 QR_DATA = os.environ.get("QR_DATA", None)
 SECRET_KEY = os.environ.get("SECRET_KEY", None)
-
-CREATE_ORDER = False
-TRACK_ORDER = False
-CREATE_AND_TRACK_ORDER = False
-GET_PRICE = False
-CREATE_QRCODE = False
 
 # class Status():
 #     def __init__(self, **fields):
@@ -92,7 +67,7 @@ CREATE_QRCODE = False
 #         self.in_amount = fields["in_amount"]
 #         self.in_amount_remaining = fields["in_amount_remaining"]
 #         self.in_confirmations_remaining = fields["in_confirmations_remaining"]
-# 
+#
 #     def __str__(self):
 #         return str(type(self)) + ": "  + json.dumps(self.__dict__)
 
@@ -108,7 +83,7 @@ STATUS_FIELDS = [
     "in_amount_remaining",
     "in_confirmations_remaining",
     "seconds_till_timeout",
-    "created_at"
+    "created_at",
 ]
 Status = collections.namedtuple("Status", STATUS_FIELDS)
 StatusClass = Status
@@ -124,7 +99,7 @@ class XmrtoConnection:
 
     __conn = None
 
-    def __init__(self, timeout:int=HTTP_TIMEOUT):
+    def __init__(self, timeout: int = HTTP_TIMEOUT):
         self.__timeout = timeout
         headers = {
             "Content-Type": "application/json",
@@ -136,25 +111,25 @@ class XmrtoConnection:
             self.__conn = Session()
             self.__conn.headers = headers
 
-    def get(self, url:str, expect_json=True):
+    def get(self, url: str, expect_json=True):
         return self._request(url=url, func=self._get, expect_json=expect_json)
 
-    def _get(self, url:str):
-        return self.__conn.get(
-                   url=url, timeout=self.__timeout
-              )
+    def _get(self, url: str):
+        return self.__conn.get(url=url, timeout=self.__timeout)
 
-    def post(self, url:str, postdata:Dict[str, str]):
+    def post(self, url: str, postdata: Dict[str, str]):
         return self._request(url=url, func=self._post, postdata=postdata)
 
-    def _post(self, url:str, postdata:str, **kwargs):
+    def _post(self, url: str, postdata: str, **kwargs):
         logger.debug(postdata)
         logger.debug(f"Additional request arguments: {kwargs}")
         return self.__conn.post(
-                   url=url, data=postdata, timeout=self.__timeout, **kwargs
-               )
+            url=url, data=postdata, timeout=self.__timeout, **kwargs
+        )
 
-    def _request(self, url:str, func, postdata:Dict[str, str]=None, expect_json=True):
+    def _request(
+        self, url: str, func, postdata: Dict[str, str] = None, expect_json=True
+    ):
         """Makes the HTTP request
 
         """
@@ -167,7 +142,7 @@ class XmrtoConnection:
                 data = dict({"url": url})
                 if postdata:
                     data["postdata"] = json.dumps(postdata)
-                    
+
                 response = func(**data)
             except (SSLError) as e:
                 # Disable verification: verify=False
@@ -176,7 +151,7 @@ class XmrtoConnection:
                 logger.debug(
                     f"SSL certificate error, trying certificate: {CERTIFICATE}"
                 )
-                data["cert"] = (CERTIFICATE)
+                data["cert"] = CERTIFICATE
                 data["verify"] = True
 
                 response = func(**data)
@@ -223,10 +198,7 @@ class XmrtoConnection:
         # Response with 400 status code returns True for not response
         if response == None:
             raise ValueError(
-                {
-                    "error": "No response.",
-                    "message": f"Response is {response}.",
-                }
+                {"error": "No response.", "message": f"Response is {response}."}
             )
 
         if response.status_code not in [
@@ -303,7 +275,7 @@ class OrderStatus:
         in_amount_remaining="xmr_amount_remaining",
         in_confirmations_remaining="xmr_num_confirmations_remaining",
         seconds_till_timeout="seconds_till_timeout",
-        created_at="created_at"
+        created_at="created_at",
     )
     V2Status = StatusClass(
         state="state",
@@ -317,7 +289,7 @@ class OrderStatus:
         in_amount_remaining="xmr_amount_remaining",
         in_confirmations_remaining="xmr_num_confirmations_remaining",
         seconds_till_timeout="seconds_till_timeout",
-        created_at="created_at"
+        created_at="created_at",
     )
     V3Status = StatusClass(
         state="state",
@@ -331,9 +303,8 @@ class OrderStatus:
         in_amount_remaining="remaining_amount_incoming",
         in_confirmations_remaining="incoming_num_confirmations_remaining",
         seconds_till_timeout="seconds_till_timeout",
-        created_at="created_at"
+        created_at="created_at",
     )
-
 
     apis = {"v1": V1Status, "v2": V2Status, "v3": V3Status}
     api_classes = {"v1": StatusClass, "v2": StatusClass, "v3": StatusClass}
@@ -346,16 +317,12 @@ class OrderStatus:
             return None
         state = data.get(status.state, None)
         in_out_rate = data.get(status.in_out_rate, None)
-        in_confirmations_remaining = data.get(
-            status.in_confirmations_remaining, None
-        )
+        in_confirmations_remaining = data.get(status.in_confirmations_remaining, None)
         in_amount_remaining = data.get(status.in_amount_remaining, None)
         in_amount = data.get(status.in_amount, None)
         payment_id_short = data.get(status.payment_id_short, None)
         payment_id_long = data.get(status.payment_id_long, None)
-        payment_integrated_address = data.get(
-            status.payment_integrated_address, None
-        )
+        payment_integrated_address = data.get(status.payment_integrated_address, None)
         payment_address = data.get(status.payment_address, None)
         payment_subaddress = data.get(status.payment_subaddress, None)
         seconds_till_timeout = data.get(status.seconds_till_timeout, None)
@@ -373,7 +340,7 @@ class OrderStatus:
             payment_address=payment_address,
             payment_subaddress=payment_subaddress,
             seconds_till_timeout=seconds_till_timeout,
-            created_at=created_at
+            created_at=created_at,
         )
 
 
@@ -414,9 +381,7 @@ class CheckQrCode:
 class XmrtoApi:
     CREATE_ORDER_ENDPOINT = "/api/{api_version}/xmr2btc/order_create/"
     ORDER_STATUS_ENDPOINT = "/api/{api_version}/xmr2btc/order_status_query/"
-    ORDER_CHECK_PRICE_ENDPOINT = (
-        "/api/{api_version}/xmr2btc/order_check_price/"
-    )
+    ORDER_CHECK_PRICE_ENDPOINT = "/api/{api_version}/xmr2btc/order_check_price/"
     QRCODE_ENDPOINT = "/api/{api_version}/xmr2btc/gen_qrcode"
 
     def __init__(self, url=XMRTO_URL_DEFAULT, api=API_VERSION_DEFAULT):
@@ -424,7 +389,7 @@ class XmrtoApi:
         self.api = api
         self.__xmr_conn = XmrtoConnection()
 
-    def create_order(self, out_address=None, out_amount=None):
+    def create_order(self, out_address=None, out_amount=None, currency="BTC"):
         if out_address is None:
             return None
         if out_amount is None:
@@ -432,11 +397,23 @@ class XmrtoApi:
         create_order_url = self.url + self.CREATE_ORDER_ENDPOINT.format(
             api_version=self.api
         )
-        postdata = {"btc_dest_address": out_address, "btc_amount": str(out_amount)}
 
-        response = self.__xmr_conn.post(
-            url=create_order_url, postdata=postdata,
-        )
+        additional_api_keys = {}
+        amount_key = "btc_amount"
+        if self.api == "v2":
+            if currency == "BTC":
+                amount_key = "btc_amount"
+            elif currency == "XMR":
+                amount_key = "xmr_amount"
+        elif self.api == "v3":
+            amount_key = "amount"
+            additional_api_keys["amount_currency"] = currency
+
+        postdata = {"btc_dest_address": out_address, f"{amount_key}": str(out_amount)}
+        if additional_api_keys:
+            postdata.update(additional_api_keys)
+
+        response = self.__xmr_conn.post(url=create_order_url, postdata=postdata)
 
         return CreateOrder.get(data=response, api=self.api)
 
@@ -448,23 +425,18 @@ class XmrtoApi:
         )
         postdata = {"uuid": uuid}
 
-        response = self.__xmr_conn.post(
-            url=order_status_url, postdata=postdata,
-        )
+        response = self.__xmr_conn.post(url=order_status_url, postdata=postdata)
 
         return OrderStatus.get(data=response, api=self.api)
 
     def order_check_price(self, pay_amount=None):
         if pay_amount is None:
             return None
-        order_check_price_url = (
-            self.url
-            + self.ORDER_CHECK_PRICE_ENDPOINT.format(api_version=self.api)
+        order_check_price_url = self.url + self.ORDER_CHECK_PRICE_ENDPOINT.format(
+            api_version=self.api
         )
         postdata = {"btc_amount": str(pay_amount)}
-        response = self.__xmr_conn.post(
-            url=order_check_price_url, postdata=postdata,
-        )
+        response = self.__xmr_conn.post(url=order_check_price_url, postdata=postdata)
 
         return CheckPrice.get(data=response, api=self.api)
 
@@ -476,15 +448,12 @@ class XmrtoApi:
             + self.QRCODE_ENDPOINT.format(api_version=self.api)
             + f"?data={data}"
         )
-        response = self.__xmr_conn.get(
-            url=generate_qrcode_url,
-            expect_json=False
-        )
+        response = self.__xmr_conn.get(url=generate_qrcode_url, expect_json=False)
 
         return CheckQrCode.get(data=response, api=self.api)
 
-class OrderStateType(type):
 
+class OrderStateType(type):
     @property
     def TO_BE_CREATED(cls):
         return "TO_BE_CREATED"
@@ -514,7 +483,7 @@ class OrderStateType(type):
         return "PURGED"
 
 
-class XmrtoOrderStatus():
+class XmrtoOrderStatus:
     def __init__(self, url=XMRTO_URL_DEFAULT, api=API_VERSION_DEFAULT, uuid=None):
         self.url = url
         self.api = api
@@ -530,7 +499,7 @@ class XmrtoOrderStatus():
         self.seconds_till_timeout = None
         self.created_at = None
         self.state = XmrtoOrder.TO_BE_CREATED
-        
+
     def get_order_status(self, uuid=None):
         if uuid is None:
             uuid = self.uuid
@@ -541,9 +510,7 @@ class XmrtoOrderStatus():
             logger.error("Please check the arguments.")
             sys.exit(1)
 
-        self.order_status = self.xmrto_api.order_status(
-            uuid=uuid
-        )
+        self.order_status = self.xmrto_api.order_status(uuid=uuid)
 
         if self.order_status:
             self.in_amount = self.order_status.in_amount
@@ -551,11 +518,12 @@ class XmrtoOrderStatus():
             self.in_out_rate = self.order_status.in_out_rate
             self.payment_address = self.order_status.payment_address
             self.payment_subaddress = self.order_status.payment_subaddress
-            self.payment_integrated_address = self.order_status.payment_integrated_address
+            self.payment_integrated_address = (
+                self.order_status.payment_integrated_address
+            )
             self.seconds_till_timeout = self.order_status.seconds_till_timeout
             self.created_at = self.order_status.created_at
             self.state = self.order_status.state
-
 
     def _to_json(self):
         data = {"uuid": self.uuid, "state": self.state}
@@ -565,7 +533,9 @@ class XmrtoOrderStatus():
             if self.order_status.payment_address:
                 data["payment_address"] = self.order_status.payment_address
             if self.order_status.payment_integrated_address:
-                data["payment_integrated_address"] = self.order_status.payment_integrated_address
+                data[
+                    "payment_integrated_address"
+                ] = self.order_status.payment_integrated_address
             if self.order_status.in_amount:
                 data["in_amount"] = self.order_status.in_amount
             if self.order_status.in_amount_remaining:
@@ -578,12 +548,17 @@ class XmrtoOrderStatus():
         return data
 
     def __str__(self):
-        return json.dumps(self._to_json)
+        return json.dumps(self._to_json())
 
 
 class XmrtoOrder(metaclass=OrderStateType):
     def __init__(
-        self, url=XMRTO_URL_DEFAULT, api=API_VERSION_DEFAULT, out_address=None, out_amount=None
+        self,
+        url=XMRTO_URL_DEFAULT,
+        api=API_VERSION_DEFAULT,
+        out_address=None,
+        out_amount=None,
+        currency="BTC",
     ):
         self.url = url
         self.api = api
@@ -593,6 +568,7 @@ class XmrtoOrder(metaclass=OrderStateType):
 
         self.out_address = out_address
         self.out_amount = out_amount
+        self.currency = currency
         self.uuid = None
         self.in_amount = None
         self.in_amount_remaining = None
@@ -613,16 +589,16 @@ class XmrtoOrder(metaclass=OrderStateType):
             self.out_amount = out_amount
 
         if not all([self.url, self.api, self.out_address, self.out_amount]):
+            logger.debug(f"{self.out_address}, {self.out_amount}")
             logger.error("Please check the arguments.")
             sys.exit(1)
 
         self.order = self.xmrto_api.create_order(
-            out_address=out_address, out_amount=out_amount
+            out_address=out_address, out_amount=out_amount, currency=self.currency
         )
         if self.order:
             self.uuid = self.order.uuid
             self.state = self.order.state
-
 
     def get_order_status(self, uuid=None):
         if uuid is None:
@@ -638,7 +614,12 @@ class XmrtoOrder(metaclass=OrderStateType):
             self.state = self.order_status.state
 
     def __str__(self):
-        data = {"uuid": self.uuid, "state": self.state, "btc_address": self.out_address, "btc_amount": self.out_amount}
+        data = {
+            "uuid": self.uuid,
+            "state": self.state,
+            "btc_address": self.out_address,
+            "btc_amount": self.out_amount,
+        }
         if self.order_status:
             data.update(self.order_status._to_json())
 
@@ -649,12 +630,24 @@ def create_order(
     xmrto_url=XMRTO_URL,
     api_version=API_VERSION,
     out_address=DESTINATION_ADDRESS,
-    out_amount=PAY_AMOUNT,
+    out_amount=BTC_AMOUNT,
     xmr_amount=XMR_AMOUNT,
 ):
+    currency = "BTC"
+    order_amount = out_amount
+    if out_amount:
+        currency = "BTC"
+        order_amount = out_amount
+    elif xmr_amount:
+        currency = "XMR"
+        order_amount = xmr_amount
+
     order = XmrtoOrder(
-        url=xmrto_url, api=api_version,
-        out_address=out_address, out_amount=out_amount
+        url=xmrto_url,
+        api=api_version,
+        out_address=out_address,
+        out_amount=order_amount,
+        currency=currency,
     )
     order.create_order()
     logger.debug(f"XMR.to order: {order}")
@@ -665,28 +658,21 @@ def create_order(
     return order
 
 
-def track_order(
-    xmrto_url=XMRTO_URL,
-    api_version=API_VERSION,
-    uuid=None,
-):
-    order_status = XmrtoOrderStatus(
-        url=xmrto_url, api=api_version,
-        uuid=uuid
-    )
+def track_order(xmrto_url=XMRTO_URL, api_version=API_VERSION, uuid=SECRET_KEY):
+    order_status = XmrtoOrderStatus(url=xmrto_url, api=api_version, uuid=uuid)
     order_status.get_order_status()
     return order_status
 
 
 def order_check_price(
-    xmrto_url=XMRTO_URL, api_version=API_VERSION, out_amount=PAY_AMOUNT
+    xmrto_url=XMRTO_URL, api_version=API_VERSION, out_amount=BTC_AMOUNT
 ):
     xmrto_api = XmrtoApi(url=xmrto_url, api=api_version)
 
     return xmrto_api.order_check_price(pay_amount=out_amount)
 
 
-def generate_qrcode(xmrto_url=XMRTO_URL, api_version=API_VERSION, data=None):
+def generate_qrcode(xmrto_url=XMRTO_URL, api_version=API_VERSION, data=QR_DATA):
     xmrto_api = XmrtoApi(url=xmrto_url, api=api_version)
 
     qrcode = xmrto_api.generate_qrcode(data=data)
@@ -697,119 +683,134 @@ def generate_qrcode(xmrto_url=XMRTO_URL, api_version=API_VERSION, data=None):
             qrcode_file.write(chunk)
     print("Stored qrcode in qrcode.png.")
 
-if __name__ == "__main__":
+
+def main():
     parser = argparse.ArgumentParser(
         description="Create a XMR,.to order.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     # Same for all subcommnds
     config = argparse.ArgumentParser(add_help=False)
-    
+
     config.add_argument(
-        "-u",
-        "--url",
-        nargs="?",
-        default=XMRTO_URL_DEFAULT,
-        help="XMR.to url to use.",
+        "-u", "--url", nargs="?", default=XMRTO_URL_DEFAULT, help="XMR.to url to use."
     )
-    config.add_argument("-a", "--api", default=API_VERSION_DEFAULT, help="API version to use.")
-    
     config.add_argument(
-        "--debug", action='store_true',  help="Show debug info."
+        "-a", "--api", default=API_VERSION_DEFAULT, help="API version to use."
     )
+
+    config.add_argument("--debug", action="store_true", help="Show debug info.")
     config.add_argument("-c", "--certificate", nargs="?", help="Local certificate.")
-    
+
     # subparsers
-    subparsers = parser.add_subparsers(help='Order sub commands..', dest='subcommand')
-    
+    subparsers = parser.add_subparsers(help="Order sub commands..", dest="subcommand")
+
     # Create order
-    create = subparsers.add_parser('create-order', parents=[config], help="Create an order.")
+    create = subparsers.add_parser(
+        "create-order", parents=[config], help="Create an order."
+    )
     create.add_argument(
-        "-d", "--destination", required=True, help="Destination (BTC) address to send money to."
+        "-d",
+        "--destination",
+        required=True,
+        help="Destination (BTC) address to send money to.",
     )
     group = create.add_mutually_exclusive_group()
     group.add_argument("-b", "--btc-amount", help="Amount to send in BTC.")
     group.add_argument("-x", "--xmr-amount", help="Amount to send in XMR.")
-    
+
     # Track order
-    track = subparsers.add_parser('track-order', parents=[config], help="Track an order.")
-    track.add_argument(
-        "--secret-key", required=True,  help="Existing secret key of an existing order."
+    track = subparsers.add_parser(
+        "track-order", parents=[config], help="Track an order."
     )
-    
+    track.add_argument(
+        "--secret-key", required=True, help="Existing secret key of an existing order."
+    )
+
     # Create and track order
-    create = subparsers.add_parser('create-and-track-order', parents=[config], help="Create an order and track it.")
+    create = subparsers.add_parser(
+        "create-and-track-order", parents=[config], help="Create an order and track it."
+    )
     create.add_argument(
-        "-d", "--destination", required=True, help="Destination (BTC) address to send money to."
+        "-d",
+        "--destination",
+        required=True,
+        help="Destination (BTC) address to send money to.",
     )
     group = create.add_mutually_exclusive_group()
     group.add_argument("-b", "--btc-amount", help="Amount to send in BTC.")
     group.add_argument("-x", "--xmr-amount", help="Amount to send in XMR.")
-    
+
     # Recent price
-    price = subparsers.add_parser('price', parents=[config], help="Get recent price.")
-    price.add_argument("-b", "--btc-amount", required=True, help="Amount to send in BTC.")
-    
-    # Create qrcode
-    qrcode = subparsers.add_parser('qrcode', parents=[config], help="Create a qrcode, is stored in a file called 'qrcode.png'.")
-    qrcode.add_argument(
-        "--data", required=True,  help="."
+    price = subparsers.add_parser("price", parents=[config], help="Get recent price.")
+    price.add_argument(
+        "-b", "--btc-amount", required=True, help="Amount to send in BTC."
     )
-    
+
+    # Create qrcode
+    qrcode = subparsers.add_parser(
+        "qrcode",
+        parents=[config],
+        help="Create a qrcode, is stored in a file called 'qrcode.png'.",
+    )
+    qrcode.add_argument("--data", required=True, help=".")
+
     args = parser.parse_args()
-    
-    DEBUG = args.debug
-    if DEBUG:
+
+    cmd_create_and_track_order = False
+    cmd_create_order = False
+    cmd_track_order = False
+    cmd_get_price = False
+    cmd_create_qrcode = False
+
+    debug = args.debug
+    if debug:
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.INFO)
-    
-    if args.subcommand == "create-and-track-order":
-        CREATE_AND_TRACK_ORDER = True
-        if not DESTINATION_ADDRESS:
-            DESTINATION_ADDRESS = args.destination
-        
-        if not PAY_AMOUNT:
-            PAY_AMOUNT = args.btc_amount
-        
-        if not XMR_AMOUNT:
-            XMR_AMOUNT = args.xmr_amount
-    if args.subcommand == "create-order":
-        CREATE_ORDER = True
-        if not DESTINATION_ADDRESS:
-            DESTINATION_ADDRESS = args.destination
-        
-        if not PAY_AMOUNT:
-            PAY_AMOUNT = args.btc_amount
-        
-        if not XMR_AMOUNT:
-            XMR_AMOUNT = args.xmr_amount
-    elif args.subcommand == "track-order":
-        TRACK_ORDER = True
-        if not SECRET_KEY:
-            SECRET_KEY = args.secret_key
-    elif args.subcommand == "price":
-        GET_PRICE = True
-        if not PAY_AMOUNT:
-            PAY_AMOUNT = args.btc_amount
-    elif args.subcommand == "qrcode":
-        CREATE_QRCODE = True
-        if not QR_DATA:
-            QR_DATA = args.data
-    
-    
-    if not XMRTO_URL:
-        XMRTO_URL = args.url
-    
-    if not API_VERSION:
-        API_VERSION = args.api
-    
-    if not CERTIFICATE:
-        CERTIFICATE = args.certificate
 
-    if CREATE_AND_TRACK_ORDER:
+    if args.subcommand == "create-and-track-order":
+        cmd_create_and_track_order = True
+        destination_address = args.destination
+        btc_amount = args.btc_amount
+        xmr_amount = args.xmr_amount
+    if args.subcommand == "create-order":
+        cmd_create_order = True
+        destination_address = args.destination
+        btc_amount = args.btc_amount
+        xmr_amount = args.xmr_amount
+    elif args.subcommand == "track-order":
+        cmd_track_order = True
+        secret_key = args.secret_key
+    elif args.subcommand == "price":
+        cmd_get_price = True
+        btc_amount = args.btc_amount
+        xmr_amount = args.xmr_amount
+    elif args.subcommand == "qrcode":
+        cmd_create_qrcode = True
+        qr_data = args.data
+
+    xmrto_url = args.url
+    api_version = args.api
+    certificate = args.certificate
+
+    if cmd_create_and_track_order:
         try:
-            order = create_order()
+            if btc_amount:
+                order = create_order(
+                    xmrto_url=xmrto_url,
+                    api_version=api_version,
+                    out_address=destination_address,
+                    out_amount=btc_amount,
+                )
+            elif xmr_amount:
+                order = create_order(
+                    xmrto_url=xmrto_url,
+                    api_version=api_version,
+                    out_address=destination_address,
+                    xmr_amount=xmr_amount,
+                )
+
             # print(order)
             order.get_order_status()
             total = 2
@@ -818,9 +819,13 @@ if __name__ == "__main__":
                     print(order)
                     if order.state in (XmrtoOrder.UNPAID, XmrtoOrder.UNDERPAID):
                         print("Pay with subaddress.")
-                        print(f"    transfer {order.order_status.payment_subaddress} {order.order_status.in_amount_remaining}")
+                        print(
+                            f"    transfer {order.order_status.payment_subaddress} {order.order_status.in_amount_remaining}"
+                        )
                         print("Pay with integrated address")
-                        print(f"    transfer {order.order_status.payment_integrated_address} {order.order_status.in_amount_remaining}")
+                        print(
+                            f"    transfer {order.order_status.payment_integrated_address} {order.order_status.in_amount_remaining}"
+                        )
                     if order.state == XmrtoOrder.TIMED_OUT:
                         total -= 1
                         if total == 0:
@@ -832,18 +837,45 @@ if __name__ == "__main__":
             print(f"\nUser interrupted")
             if order:
                 print(f"{order}")
-    if CREATE_ORDER:
-        order = create_order()
+    elif cmd_create_order:
+        if btc_amount:
+            order = create_order(
+                xmrto_url=xmrto_url,
+                api_version=api_version,
+                out_address=destination_address,
+                out_amount=btc_amount,
+            )
+        elif xmr_amount:
+            order = create_order(
+                xmrto_url=xmrto_url,
+                api_version=api_version,
+                out_address=destination_address,
+                xmr_amount=xmr_amount,
+            )
+
         print(order)
-    elif TRACK_ORDER:
-        order_status = track_order(uuid=SECRET_KEY)
+    elif cmd_track_order:
+        order_status = track_order(
+            xmrto_url=xmrto_url, api_version=api_version, uuid=secret_key
+        )
         if order_status.state in (XmrtoOrder.UNPAID, XmrtoOrder.UNDERPAID):
             print("Pay with subaddress.")
-            print(f"    transfer {order_status.payment_subaddress} {order_status.in_amount_remaining}")
+            print(
+                f"    transfer {order_status.payment_subaddress} {order_status.in_amount_remaining}"
+            )
             print("Pay with integrated address")
-            print(f"    transfer {order_status.payment_integrated_address} {order_status.in_amount_remaining}")
-    elif GET_PRICE:
-        print(order_check_price())
-    elif CREATE_QRCODE:
-        generate_qrcode(xmrto_url=XMRTO_URL, api_version=API_VERSION, data=QR_DATA)
+            print(
+                f"    transfer {order_status.payment_integrated_address} {order_status.in_amount_remaining}"
+            )
+    elif cmd_get_price:
+        print(
+            order_check_price(
+                xmrto_url=xmrto_url, api_version=api_version, out_amount=btc_amount
+            )
+        )
+    elif cmd_create_qrcode:
+        generate_qrcode(xmrto_url=xmrto_url, api_version=api_version, data=qr_data)
 
+
+if __name__ == "__main__":
+    main()
