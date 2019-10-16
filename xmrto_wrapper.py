@@ -389,15 +389,7 @@ class XmrtoApi:
         self.api = api
         self.__xmr_conn = XmrtoConnection()
 
-    def create_order(self, out_address=None, out_amount=None, currency="BTC"):
-        if out_address is None:
-            return None
-        if out_amount is None:
-            return None
-        create_order_url = self.url + self.CREATE_ORDER_ENDPOINT.format(
-            api_version=self.api
-        )
-
+    def __add_amount_and_currency(self, out_amount=None, currency=None):
         additional_api_keys = {}
         amount_key = "btc_amount"
         if self.api == "v2":
@@ -409,9 +401,23 @@ class XmrtoApi:
             amount_key = "amount"
             additional_api_keys["amount_currency"] = currency
 
-        postdata = {"btc_dest_address": out_address, f"{amount_key}": str(out_amount)}
-        if additional_api_keys:
-            postdata.update(additional_api_keys)
+        additional_api_keys[f"{amount_key}"] = str(out_amount)
+
+        return additional_api_keys
+
+    def create_order(self, out_address=None, out_amount=None, currency="BTC"):
+        if out_address is None:
+            return None
+        if out_amount is None:
+            return None
+        create_order_url = self.url + self.CREATE_ORDER_ENDPOINT.format(
+            api_version=self.api
+        )
+
+        postdata = {"btc_dest_address": out_address}
+        postdata.update(
+            self.__add_amount_and_currency(out_amount=out_amount, currency=currency)
+        )
 
         response = self.__xmr_conn.post(url=create_order_url, postdata=postdata)
 
@@ -429,13 +435,18 @@ class XmrtoApi:
 
         return OrderStatus.get(data=response, api=self.api)
 
-    def order_check_price(self, pay_amount=None):
-        if pay_amount is None:
+    def order_check_price(self, out_amount=None, currency="BTC"):
+        if out_amount is None:
             return None
         order_check_price_url = self.url + self.ORDER_CHECK_PRICE_ENDPOINT.format(
             api_version=self.api
         )
-        postdata = {"btc_amount": str(pay_amount)}
+
+        postdata = dict()
+        postdata.update(
+            self.__add_amount_and_currency(out_amount=out_amount, currency=currency)
+        )
+
         response = self.__xmr_conn.post(url=order_check_price_url, postdata=postdata)
 
         return CheckPrice.get(data=response, api=self.api)
@@ -630,23 +641,23 @@ def create_order(
     xmrto_url=XMRTO_URL,
     api_version=API_VERSION,
     out_address=DESTINATION_ADDRESS,
-    out_amount=BTC_AMOUNT,
+    btc_amount=BTC_AMOUNT,
     xmr_amount=XMR_AMOUNT,
 ):
     currency = "BTC"
-    order_amount = out_amount
-    if out_amount:
+    out_amount = btc_amount
+    if btc_amount:
         currency = "BTC"
-        order_amount = out_amount
+        out_amount = btc_amount
     elif xmr_amount:
         currency = "XMR"
-        order_amount = xmr_amount
+        out_amount = xmr_amount
 
     order = XmrtoOrder(
         url=xmrto_url,
         api=api_version,
         out_address=out_address,
-        out_amount=order_amount,
+        out_amount=out_amount,
         currency=currency,
     )
     order.create_order()
@@ -665,11 +676,23 @@ def track_order(xmrto_url=XMRTO_URL, api_version=API_VERSION, uuid=SECRET_KEY):
 
 
 def order_check_price(
-    xmrto_url=XMRTO_URL, api_version=API_VERSION, out_amount=BTC_AMOUNT
+    xmrto_url=XMRTO_URL,
+    api_version=API_VERSION,
+    btc_amount=BTC_AMOUNT,
+    xmr_amount=XMR_AMOUNT,
 ):
     xmrto_api = XmrtoApi(url=xmrto_url, api=api_version)
 
-    return xmrto_api.order_check_price(pay_amount=out_amount)
+    currency = "BTC"
+    out_amount = btc_amount
+    if btc_amount:
+        currency = "BTC"
+        out_amount = btc_amount
+    elif xmr_amount:
+        currency = "XMR"
+        out_amount = xmr_amount
+
+    return xmrto_api.order_check_price(out_amount=out_amount, currency=currency)
 
 
 def generate_qrcode(xmrto_url=XMRTO_URL, api_version=API_VERSION, data=QR_DATA):
@@ -743,9 +766,9 @@ def main():
 
     # Recent price
     price = subparsers.add_parser("price", parents=[config], help="Get recent price.")
-    price.add_argument(
-        "-b", "--btc-amount", required=True, help="Amount to send in BTC."
-    )
+    group = price.add_mutually_exclusive_group()
+    group.add_argument("-b", "--btc-amount", help="Amount to send in BTC.")
+    group.add_argument("-x", "--xmr-amount", help="Amount to send in XMR.")
 
     # Create qrcode
     qrcode = subparsers.add_parser(
@@ -801,7 +824,7 @@ def main():
                     xmrto_url=xmrto_url,
                     api_version=api_version,
                     out_address=destination_address,
-                    out_amount=btc_amount,
+                    btc_amount=btc_amount,
                 )
             elif xmr_amount:
                 order = create_order(
@@ -822,10 +845,11 @@ def main():
                         print(
                             f"    transfer {order.order_status.payment_subaddress} {order.order_status.in_amount_remaining}"
                         )
-                        print("Pay with integrated address")
-                        print(
-                            f"    transfer {order.order_status.payment_integrated_address} {order.order_status.in_amount_remaining}"
-                        )
+                        if order.order_status.payment_integrated_address:
+                            print("Pay with integrated address")
+                            print(
+                                f"    transfer {order.order_status.payment_integrated_address} {order.order_status.in_amount_remaining}"
+                            )
                     if order.state == XmrtoOrder.TIMED_OUT:
                         total -= 1
                         if total == 0:
@@ -843,7 +867,7 @@ def main():
                 xmrto_url=xmrto_url,
                 api_version=api_version,
                 out_address=destination_address,
-                out_amount=btc_amount,
+                btc_amount=btc_amount,
             )
         elif xmr_amount:
             order = create_order(
@@ -863,16 +887,22 @@ def main():
             print(
                 f"    transfer {order_status.payment_subaddress} {order_status.in_amount_remaining}"
             )
-            print("Pay with integrated address")
-            print(
-                f"    transfer {order_status.payment_integrated_address} {order_status.in_amount_remaining}"
-            )
+            if order_status.payment_integrated_address:
+                print("Pay with integrated address")
+                print(
+                    f"    transfer {order_status.payment_integrated_address} {order_status.in_amount_remaining}"
+                )
     elif cmd_get_price:
-        print(
-            order_check_price(
-                xmrto_url=xmrto_url, api_version=api_version, out_amount=btc_amount
+        if btc_amount:
+            price = order_check_price(
+                xmrto_url=xmrto_url, api_version=api_version, btc_amount=btc_amount
             )
-        )
+        elif xmr_amount:
+            price = order_check_price(
+                xmrto_url=xmrto_url, api_version=api_version, xmr_amount=xmr_amount
+            )
+
+        print(price)
     elif cmd_create_qrcode:
         generate_qrcode(xmrto_url=xmrto_url, api_version=api_version, data=qr_data)
 
