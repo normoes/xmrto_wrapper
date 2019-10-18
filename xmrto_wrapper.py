@@ -159,12 +159,12 @@ class XmrtoConnection:
             error_msg = dict({"error": str(e)})
             error_msg["url"] = url
             print(json.dumps(error_msg))
-            sys.exit(1)
+            return None
         except (Exception) as e:
             error_msg = dict({"error": str(e)})
             error_msg["url"] = url
             print(json.dumps(error_msg))
-            sys.exit(1)
+            return None
 
         response_ = None
         try:
@@ -173,18 +173,18 @@ class XmrtoConnection:
             error_msg = dict({"error": str(e)})
             error_msg["url"] = url
             print(json.dumps(error_msg))
-            sys.exit(1)
+            return None
 
         if not response_:
             error_msg = dict({"error": "Could not evaluate response."})
             error_msg["url"] = url
             print(json.dumps(error_msg))
-            sys.exit(1)
+            return None
         elif isinstance(response_, dict) and (not response_.get("error", None) is None):
             error_msg = response_
             error_msg["url"] = url
             print(json.dumps(error_msg))
-            sys.exit(1)
+            return None
 
         return response_
 
@@ -253,7 +253,7 @@ class CreateOrder:
     @classmethod
     def get(cls, data, api):
         order = cls.apis[api]
-        if not order:
+        if not order or not data:
             return None
         uuid = data.get(order.uuid, None)
         state = data.get(order.state, None)
@@ -313,7 +313,7 @@ class OrderStatus:
     def get(cls, data, api):
         status = cls.apis[api]
         StatusClass_ = cls.api_classes[api]
-        if not status:
+        if not status or not data:
             return None
         state = data.get(status.state, None)
         in_out_rate = data.get(status.in_out_rate, None)
@@ -361,7 +361,7 @@ class CheckPrice:
     @classmethod
     def get(cls, data, api):
         price = cls.apis[api]
-        if not price:
+        if not price or not data:
             return None
         out_amount = data.get(price.out_amount, None)
         in_amount = data.get(price.in_amount, None)
@@ -528,7 +528,7 @@ class XmrtoOrderStatus:
 
         if not all([self.url, self.api, self.uuid]):
             logger.error("Please check the arguments.")
-            sys.exit(1)
+            return
 
         self.order_status = self.xmrto_api.order_status(uuid=uuid)
 
@@ -619,11 +619,11 @@ class XmrtoOrder(metaclass=OrderStateType):
         if not any([self.btc_amount, self.xmr_amount]):
             logger.debug(f"{self.btc_amount}, {self.xmr_amount}")
             logger.error("Please check the arguments.")
-            sys.exit(1)
+            return
         if not all([self.url, self.api, self.out_address]):
             logger.debug(f"{self.out_address}")
             logger.error("Please check the arguments.")
-            sys.exit(1)
+            return
 
         out_amount = self.btc_amount
         if btc_amount:
@@ -649,7 +649,7 @@ class XmrtoOrder(metaclass=OrderStateType):
 
         if not all([self.url, self.api, self.uuid]):
             logger.error("Please check the arguments.")
-            sys.exit(1)
+            return
 
         self.order_status = XmrtoOrderStatus(url=self.url, api=self.api)
         self.order_status.get_order_status(uuid=uuid)
