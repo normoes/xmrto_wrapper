@@ -655,6 +655,13 @@ class XmrtoOrder(metaclass=OrderStateType):
         self.order_status.get_order_status(uuid=uuid)
         if self.order_status:
             self.state = self.order_status.state
+            self.in_amount = self.order_status.in_amount
+            self.in_amount_remaining = self.order_status.in_amount_remaining
+            self.payment_subaddress = self.order_status.payment_address
+            self.payment_address = self.order_status.in_amount_remaining
+            self.payment_integrated_address = (
+                self.order_status.payment_integrated_address
+            )
 
     def __str__(self):
         data = {
