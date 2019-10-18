@@ -657,8 +657,8 @@ class XmrtoOrder(metaclass=OrderStateType):
             self.state = self.order_status.state
             self.in_amount = self.order_status.in_amount
             self.in_amount_remaining = self.order_status.in_amount_remaining
-            self.payment_subaddress = self.order_status.payment_address
-            self.payment_address = self.order_status.in_amount_remaining
+            self.payment_subaddress = self.order_status.payment_subaddress
+            self.payment_address = self.order_status.payment_address
             self.payment_integrated_address = (
                 self.order_status.payment_integrated_address
             )
