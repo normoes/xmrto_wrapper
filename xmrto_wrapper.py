@@ -882,6 +882,7 @@ def main():
         order_status = track_order(
             xmrto_url=xmrto_url, api_version=api_version, uuid=secret_key
         )
+        print(order_status)
         if order_status.state in (XmrtoOrder.UNPAID, XmrtoOrder.UNDERPAID):
             print("Pay with subaddress.")
             print(
