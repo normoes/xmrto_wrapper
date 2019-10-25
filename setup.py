@@ -1,9 +1,11 @@
 from setuptools import setup
 
+from _version import __version__
+
 
 setup(
     name="xmrto_wrapper",
-    version="0.0.1",
+    version=__version__,
     author="Norman Moeschter-Schenck",
     author_email="norman.moeschter@gmail.com",
     url="https://github.com/normoes/xmrto_wrapper",

@@ -25,6 +25,7 @@ When called as python script python `xmrto_wrapper.py` configure it using cli op
 When importing as module `import xmrto_wrapper` environment variables are considered.
 """
 
+
 import os
 import sys
 import argparse
@@ -36,6 +37,8 @@ from typing import Dict
 
 from requests import auth, Session, codes
 from requests.exceptions import ConnectionError, SSLError
+
+from _version import __version__
 
 
 logging.basicConfig()
@@ -731,10 +734,15 @@ def generate_qrcode(xmrto_url=XMRTO_URL, api_version=API_VERSION, data=QR_DATA):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Create a XMR,.to order.",
+        description="Create a XMR.to order.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    # Same for all subcommnds
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s {version}".format(version=__version__),
+    )
+
     config = argparse.ArgumentParser(add_help=False)
 
     config.add_argument(
@@ -749,6 +757,7 @@ def main():
 
     # subparsers
     subparsers = parser.add_subparsers(help="Order sub commands..", dest="subcommand")
+    subparsers.required = True
 
     # Create order
     create = subparsers.add_parser(
@@ -760,7 +769,7 @@ def main():
         required=True,
         help="Destination (BTC) address to send money to.",
     )
-    group = create.add_mutually_exclusive_group()
+    group = create.add_mutually_exclusive_group(required=True)
     group.add_argument("-b", "--btc-amount", help="Amount to send in BTC.")
     group.add_argument("-x", "--xmr-amount", help="Amount to send in XMR.")
 
@@ -782,13 +791,13 @@ def main():
         required=True,
         help="Destination (BTC) address to send money to.",
     )
-    group = create.add_mutually_exclusive_group()
+    group = create.add_mutually_exclusive_group(required=True)
     group.add_argument("-b", "--btc-amount", help="Amount to send in BTC.")
     group.add_argument("-x", "--xmr-amount", help="Amount to send in XMR.")
 
     # Recent price
     price = subparsers.add_parser("price", parents=[config], help="Get recent price.")
-    group = price.add_mutually_exclusive_group()
+    group = price.add_mutually_exclusive_group(required=True)
     group.add_argument("-b", "--btc-amount", help="Amount to send in BTC.")
     group.add_argument("-x", "--xmr-amount", help="Amount to send in XMR.")
 
