@@ -19,4 +19,5 @@ setup(
     ],
     install_requires=["requests>=2.22.0"],
     py_modules=["xmrto_wrapper"],
+    scripts=["bin/xmrto_wrapper"],
 )
