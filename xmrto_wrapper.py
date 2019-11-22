@@ -38,8 +38,6 @@ from typing import Dict
 from requests import auth, Session, codes
 from requests.exceptions import ConnectionError, SSLError
 
-from _version import __version__
-
 
 logging.basicConfig()
 logger = logging.getLogger("XmrtoWrapper")
@@ -77,6 +75,8 @@ SECRET_KEY = os.environ.get("SECRET_KEY", None)
 STATUS_FIELDS = [
     "state",
     "in_out_rate",
+    "btc_amount",
+    "btc_amount_partial",
     "payment_subaddress",
     "payment_address",
     "payment_integrated_address",
@@ -120,8 +120,10 @@ class XmrtoConnection:
     def _get(self, url: str):
         return self.__conn.get(url=url, timeout=self.__timeout)
 
-    def post(self, url: str, postdata: Dict[str, str]):
-        return self._request(url=url, func=self._post, postdata=postdata)
+    def post(self, url: str, postdata: Dict[str, str], expect_json=True):
+        return self._request(
+            url=url, func=self._post, postdata=postdata, expect_json=expect_json
+        )
 
     def _post(self, url: str, postdata: str, **kwargs):
         logger.debug(postdata)
@@ -161,11 +163,13 @@ class XmrtoConnection:
         except (ConnectionError) as e:
             error_msg = dict({"error": str(e)})
             error_msg["url"] = url
+            error_msg["error_code"] = 102
             print(json.dumps(error_msg))
             return None
         except (Exception) as e:
             error_msg = dict({"error": str(e)})
             error_msg["url"] = url
+            error_msg["error_code"] = 103
             print(json.dumps(error_msg))
             return None
 
@@ -175,19 +179,21 @@ class XmrtoConnection:
         except (ValueError) as e:
             error_msg = dict({"error": str(e)})
             error_msg["url"] = url
+            error_msg["error_code"] = 100
             print(json.dumps(error_msg))
             return None
 
         if not response_:
             error_msg = dict({"error": "Could not evaluate response."})
             error_msg["url"] = url
+            error_msg["error_code"] = 101
             print(json.dumps(error_msg))
             return None
         elif isinstance(response_, dict) and (not response_.get("error", None) is None):
             error_msg = response_
             error_msg["url"] = url
-            print(json.dumps(error_msg))
-            return None
+            # print(json.dumps(error_msg))
+            return error_msg
 
         return response_
 
@@ -213,7 +219,7 @@ class XmrtoConnection:
         ]:
             raise ValueError(
                 {
-                    "error": "HTTP status code",
+                    "error": "HTTP status code.",
                     "message": "Received HTTP status code {}".format(
                         response.status_code
                     ),
@@ -223,7 +229,7 @@ class XmrtoConnection:
         if http_response is None:
             raise ValueError(
                 {
-                    "error": "Empty response",
+                    "error": "Empty response.",
                     "message": "Missing HTTP response from server",
                 }
             )
@@ -235,7 +241,7 @@ class XmrtoConnection:
             if expect_json:
                 raise ValueError(
                     {
-                        "error": "",
+                        "error": "Expected JSON, got something else.",
                         "message": f"'{http_response}' with exception '{str(e)}'",
                     }
                 )
@@ -257,18 +263,25 @@ class CreateOrder:
     def get(cls, data, api):
         order = cls.apis[api]
         if not order or not data:
-            return None
+            return None, None
+
+        xmrto_error = None
+        if "error" in data:
+            xmrto_error = data
+
         uuid = data.get(order.uuid, None)
         state = data.get(order.state, None)
         out_amount = data.get(order.out_amount, None)
 
-        return Order(uuid=uuid, state=state, out_amount=out_amount)
+        return Order(uuid=uuid, state=state, out_amount=out_amount), xmrto_error
 
 
 class OrderStatus:
     V1Status = StatusClass(
         state="state",
         in_out_rate="xmr_price_btc",
+        btc_amount="btc_amount",
+        btc_amount_partial="",
         payment_subaddress="xmr_receiving_subaddress",
         payment_address="xmr_receiving_address",
         payment_integrated_address="",
@@ -283,6 +296,8 @@ class OrderStatus:
     V2Status = StatusClass(
         state="state",
         in_out_rate="xmr_price_btc",
+        btc_amount="btc_amount",
+        btc_amount_partial="btc_amount_partial",
         payment_subaddress="xmr_receiving_subaddress",
         payment_address="xmr_receiving_address",
         payment_integrated_address="xmr_receiving_integrated_address",
@@ -297,6 +312,8 @@ class OrderStatus:
     V3Status = StatusClass(
         state="state",
         in_out_rate="incoming_price_btc",
+        btc_amount="btc_amount",
+        btc_amount_partial="btc_amount_partial",
         payment_subaddress="receiving_subaddress",
         payment_address="receiving_address",
         payment_integrated_address="receiving_integrated_address",
@@ -317,9 +334,16 @@ class OrderStatus:
         status = cls.apis[api]
         StatusClass_ = cls.api_classes[api]
         if not status or not data:
-            return None
+            return None, None
+
+        xmrto_error = None
+        if "error" in data:
+            xmrto_error = data
+
         state = data.get(status.state, None)
         in_out_rate = data.get(status.in_out_rate, None)
+        btc_amount = data.get(status.btc_amount, None)
+        btc_amount_partial = data.get(status.btc_amount_partial, None)
         in_confirmations_remaining = data.get(status.in_confirmations_remaining, None)
         in_amount_remaining = data.get(status.in_amount_remaining, None)
         in_amount = data.get(status.in_amount, None)
@@ -331,19 +355,24 @@ class OrderStatus:
         seconds_till_timeout = data.get(status.seconds_till_timeout, None)
         created_at = data.get(status.created_at, None)
 
-        return StatusClass_(
-            state=state,
-            in_out_rate=in_out_rate,
-            in_confirmations_remaining=in_confirmations_remaining,
-            in_amount_remaining=in_amount_remaining,
-            in_amount=in_amount,
-            payment_id_short=payment_id_short,
-            payment_id_long=payment_id_long,
-            payment_integrated_address=payment_integrated_address,
-            payment_address=payment_address,
-            payment_subaddress=payment_subaddress,
-            seconds_till_timeout=seconds_till_timeout,
-            created_at=created_at,
+        return (
+            StatusClass_(
+                state=state,
+                in_out_rate=in_out_rate,
+                btc_amount=btc_amount,
+                btc_amount_partial=btc_amount_partial,
+                in_confirmations_remaining=in_confirmations_remaining,
+                in_amount_remaining=in_amount_remaining,
+                in_amount=in_amount,
+                payment_id_short=payment_id_short,
+                payment_id_long=payment_id_long,
+                payment_integrated_address=payment_integrated_address,
+                payment_address=payment_address,
+                payment_subaddress=payment_subaddress,
+                seconds_till_timeout=seconds_till_timeout,
+                created_at=created_at,
+            ),
+            xmrto_error,
         )
 
 
@@ -366,12 +395,18 @@ class CheckPrice:
         price = cls.apis[api]
         if not price or not data:
             return None
+
+        xmrto_error = None
+        if "error" in data:
+            xmrto_error = data
+
         out_amount = data.get(price.out_amount, None)
         in_amount = data.get(price.in_amount, None)
         in_out_rate = data.get(price.in_out_rate, None)
 
-        return Price(
-            out_amount=out_amount, in_amount=in_amount, in_out_rate=in_out_rate
+        return (
+            Price(out_amount=out_amount, in_amount=in_amount, in_out_rate=in_out_rate),
+            xmrto_error,
         )
 
 
@@ -384,7 +419,8 @@ class CheckQrCode:
 class XmrtoApi:
     CREATE_ORDER_ENDPOINT = "/api/{api_version}/xmr2btc/order_create/"
     ORDER_STATUS_ENDPOINT = "/api/{api_version}/xmr2btc/order_status_query/"
-    ORDER_CHECK_PRICE_ENDPOINT = "/api/{api_version}/xmr2btc/order_check_price/"
+    CHECK_PRICE_ENDPOINT = "/api/{api_version}/xmr2btc/order_check_price/"
+    PARTIAL_PAYMENT_ENDPOINT = "/api/{api_version}/xmr2btc/order_partial_payment/"
     QRCODE_ENDPOINT = "/api/{api_version}/xmr2btc/gen_qrcode"
 
     def __init__(self, url=XMRTO_URL_DEFAULT, api=API_VERSION_DEFAULT):
@@ -438,12 +474,39 @@ class XmrtoApi:
 
         return OrderStatus.get(data=response, api=self.api)
 
+    def confirm_partial_payment(self, uuid=None):
+        if uuid is None:
+            return None, None
+        partial_payment_url = self.url + self.PARTIAL_PAYMENT_ENDPOINT.format(
+            api_version=self.api
+        )
+        postdata = {"uuid": uuid}
+
+        response = self.__xmr_conn.post(
+            url=partial_payment_url, postdata=postdata, expect_json=False
+        )
+
+        xmrto_error = None
+        confirmed = True
+        if "error" in response:
+            xmrto_error = response
+            confirmed = False
+
+        if not response:
+            return None, None
+
+        # if response.status_code in [codes.ok]:
+        #     confirmed = False
+        #     xmrto_error = {"status_code": response.status_code}
+
+        return confirmed, xmrto_error
+
     def order_check_price(self, btc_amount=None, xmr_amount=None, currency="BTC"):
         if btc_amount is None and xmr_amount is None:
             return None
         if currency is None:
             return None
-        order_check_price_url = self.url + self.ORDER_CHECK_PRICE_ENDPOINT.format(
+        order_check_price_url = self.url + self.CHECK_PRICE_ENDPOINT.format(
             api_version=self.api
         )
 
@@ -513,9 +576,13 @@ class XmrtoOrderStatus:
         self.xmrto_api = XmrtoApi(url=self.url, api=self.api)
         self.uuid = uuid
         self.order_status = None
+        self.error = None
 
         self.in_amount = None
         self.in_amount_remaining = None
+        self.in_out_rate = None
+        self.btc_amount = None
+        self.btc_amount_partial = None
         self.payment_subaddress = None
         self.payment_address = None
         self.payment_integrated_address = None
@@ -531,14 +598,16 @@ class XmrtoOrderStatus:
 
         if not all([self.url, self.api, self.uuid]):
             logger.error("Please check the arguments.")
-            return
+            return 0
 
-        self.order_status = self.xmrto_api.order_status(uuid=uuid)
+        self.order_status, self.error = self.xmrto_api.order_status(uuid=uuid)
 
         if self.order_status:
             self.in_amount = self.order_status.in_amount
             self.in_amount_remaining = self.order_status.in_amount_remaining
             self.in_out_rate = self.order_status.in_out_rate
+            self.btc_amount = self.order_status.btc_amount
+            self.btc_amount_partial = self.order_status.btc_amount_partial
             self.payment_address = self.order_status.payment_address
             self.payment_subaddress = self.order_status.payment_subaddress
             self.payment_integrated_address = (
@@ -547,6 +616,14 @@ class XmrtoOrderStatus:
             self.seconds_till_timeout = self.order_status.seconds_till_timeout
             self.created_at = self.order_status.created_at
             self.state = self.order_status.state
+        return 1
+
+    def confirm_partial_payment(self, uuid=None):
+        if not self.get_order_status(uuid=uuid):
+            return 0
+        partial_payment_confirmed, self.error = self.xmrto_api.confirm_partial_payment(
+            uuid=self.uuid
+        )
 
     def _to_json(self):
         data = {"uuid": self.uuid, "state": self.state}
@@ -563,10 +640,19 @@ class XmrtoOrderStatus:
                 data["in_amount"] = self.order_status.in_amount
             if self.order_status.in_amount_remaining:
                 data["in_amount_remaining"] = self.order_status.in_amount_remaining
+            if self.order_status.in_out_rate:
+                data["in_out_rate"] = self.order_status.in_out_rate
+            if self.order_status.btc_amount:
+                data["btc_amount"] = self.order_status.btc_amount
+            if self.order_status.btc_amount_partial:
+                data["btc_amount_partial"] = self.order_status.btc_amount_partial
             if self.order_status.seconds_till_timeout:
                 data["seconds_till_timeout"] = self.order_status.seconds_till_timeout
             if self.order_status.created_at:
                 data["created_at"] = self.order_status.created_at
+
+        if self.error:
+            data["error"] = self.error
 
         return data
 
@@ -588,15 +674,18 @@ class XmrtoOrder(metaclass=OrderStateType):
         self.xmrto_api = XmrtoApi(url=self.url, api=self.api)
         self.order = None
         self.order_status = None
+        self.error = None
 
         self.out_address = out_address
         self.btc_amount = btc_amount
+        self.btc_amount_partial = None
         self.xmr_amount = xmr_amount
         self.out_amount = None
         self.currency = None
         self.uuid = None
         self.in_amount = None
         self.in_amount_remaining = None
+        self.in_out_rate = None
         self.payment_subaddress = None
         self.payment_address = None
         self.payment_integrated_address = None
@@ -638,7 +727,7 @@ class XmrtoOrder(metaclass=OrderStateType):
 
         self.currency = currency
 
-        self.order = self.xmrto_api.create_order(
+        self.order, self.error = self.xmrto_api.create_order(
             out_address=self.out_address, out_amount=out_amount, currency=currency
         )
         if self.order:
@@ -650,8 +739,7 @@ class XmrtoOrder(metaclass=OrderStateType):
         if uuid is None:
             uuid = self.uuid
 
-        if not all([self.url, self.api, self.uuid]):
-            logger.error("Please check the arguments.")
+        if self.error:
             return
 
         self.order_status = XmrtoOrderStatus(url=self.url, api=self.api)
@@ -660,11 +748,15 @@ class XmrtoOrder(metaclass=OrderStateType):
             self.state = self.order_status.state
             self.in_amount = self.order_status.in_amount
             self.in_amount_remaining = self.order_status.in_amount_remaining
+            self.in_out_rate = self.order_status.in_out_rate
+            self.btc_amount = self.order_status.btc_amount
+            self.btc_amount_partial = self.order_status.btc_amount_partial
             self.payment_subaddress = self.order_status.payment_subaddress
             self.payment_address = self.order_status.payment_address
             self.payment_integrated_address = (
                 self.order_status.payment_integrated_address
             )
+            self.error = self.order_status.error
 
     def __str__(self):
         data = {
@@ -676,6 +768,9 @@ class XmrtoOrder(metaclass=OrderStateType):
 
         if self.order_status:
             data.update(self.order_status._to_json())
+
+        if self.error:
+            data.update(self.error)
 
         return json.dumps(data)
 
@@ -709,6 +804,20 @@ def track_order(xmrto_url=XMRTO_URL, api_version=API_VERSION, uuid=SECRET_KEY):
     return order_status
 
 
+def confirm_partial_payment(
+    xmrto_url=XMRTO_URL, api_version=API_VERSION, uuid=SECRET_KEY
+):
+    order_status = track_order(xmrto_url=xmrto_url, api_version=api_version, uuid=uuid)
+    if not order_status.state == XmrtoOrder.UNDERPAID:
+        logger.warning(f"The order is not ready for a partial payment, wrong state.")
+        return order_status
+    else:
+        order_status.confirm_partial_payment()
+        logger.info(f"The partial payment was confirmed.")
+
+    return order_status
+
+
 def order_check_price(
     xmrto_url=XMRTO_URL,
     api_version=API_VERSION,
@@ -733,6 +842,8 @@ def generate_qrcode(xmrto_url=XMRTO_URL, api_version=API_VERSION, data=QR_DATA):
 
 
 def main():
+    from _version import __version__
+
     parser = argparse.ArgumentParser(
         description="Create a XMR.to order.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -756,7 +867,7 @@ def main():
     config.add_argument("-c", "--certificate", nargs="?", help="Local certificate.")
 
     # subparsers
-    subparsers = parser.add_subparsers(help="Order sub commands..", dest="subcommand")
+    subparsers = parser.add_subparsers(help="Order sub commands.", dest="subcommand")
     subparsers.required = True
 
     # Create order
@@ -778,6 +889,16 @@ def main():
         "track-order", parents=[config], help="Track an order."
     )
     track.add_argument(
+        "--secret-key", required=True, help="Existing secret key of an existing order."
+    )
+
+    # Partial payment
+    partial = subparsers.add_parser(
+        "confirm-partial-payment",
+        parents=[config],
+        help="Confirm the partial payment of  an order.",
+    )
+    partial.add_argument(
         "--secret-key", required=True, help="Existing secret key of an existing order."
     )
 
@@ -814,6 +935,7 @@ def main():
     cmd_create_and_track_order = False
     cmd_create_order = False
     cmd_track_order = False
+    cmd_partial_payment = False
     cmd_get_price = False
     cmd_create_qrcode = False
 
@@ -835,6 +957,9 @@ def main():
         xmr_amount = args.xmr_amount
     elif args.subcommand == "track-order":
         cmd_track_order = True
+        secret_key = args.secret_key
+    elif args.subcommand == "confirm-partial-payment":
+        cmd_partial_payment = True
         secret_key = args.secret_key
     elif args.subcommand == "price":
         cmd_get_price = True
@@ -909,13 +1034,22 @@ def main():
                 print(
                     f"    transfer {order_status.payment_integrated_address} {order_status.in_amount_remaining}"
                 )
+    elif cmd_partial_payment:
+        order_status = confirm_partial_payment(
+            xmrto_url=xmrto_url, api_version=api_version, uuid=secret_key
+        )
+        print(order_status)
     elif cmd_get_price:
-        price = order_check_price(
+        price, error = order_check_price(
             xmrto_url=xmrto_url,
             api_version=api_version,
             btc_amount=btc_amount,
             xmr_amount=xmr_amount,
         )
+
+        if error:
+            print(error)
+            return
 
         print(price)
     elif cmd_create_qrcode:
