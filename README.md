@@ -47,6 +47,3 @@ This way, you can just use the tool as every executable on your system.
 ```
 xmrto_wrapper --help
 ```
-
-*Note*:
-There will be a pypi package very soon.
