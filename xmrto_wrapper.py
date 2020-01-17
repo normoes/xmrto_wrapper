@@ -25,7 +25,6 @@ When called as python script python `xmrto_wrapper.py` configure it using cli op
 When importing as module `import xmrto_wrapper` environment variables are considered.
 """
 
-
 import os
 import sys
 import argparse
@@ -567,6 +566,10 @@ class OrderStateType(type):
     @property
     def PURGED(cls):
         return "PURGED"
+
+    @property
+    def PURGED(cls):
+        return "FLAGGED_DESTINATION_ADDRESS"
 
 
 class XmrtoOrderStatus:
