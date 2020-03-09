@@ -34,7 +34,7 @@ import time
 import collections
 from typing import Dict
 
-from requests import auth, Session, codes
+from requests import Session, codes
 from requests.exceptions import ConnectionError, SSLError
 
 
@@ -126,7 +126,7 @@ class XmrtoConnection:
 
     def _post(self, url: str, postdata: str, **kwargs):
         logger.debug(postdata)
-        logger.debug(f"Additional request arguments: {kwargs}")
+        logger.debug(f"Additional request arguments: '{kwargs}'.")
         return self.__conn.post(
             url=url, data=postdata, timeout=self.__timeout, **kwargs
         )
@@ -153,7 +153,7 @@ class XmrtoConnection:
                 # , cert=path_to_certificate
                 # , verify=True
                 logger.debug(
-                    f"SSL certificate error, trying certificate: {CERTIFICATE}"
+                    f"Trying certificate: '{CERTIFICATE}'. SSL certificate error '{str(e)}'."
                 )
                 data["cert"] = CERTIFICATE
                 data["verify"] = True
@@ -204,7 +204,7 @@ class XmrtoConnection:
 
         # Compare against None
         # Response with 400 status code returns True for not response
-        if response == None:
+        if response is None:
             raise ValueError(
                 {"error": "No response.", "message": f"Response is {response}."}
             )
@@ -219,9 +219,7 @@ class XmrtoConnection:
             raise ValueError(
                 {
                     "error": "HTTP status code.",
-                    "message": "Received HTTP status code {}".format(
-                        response.status_code
-                    ),
+                    "message": f"Received HTTP status code '{response.status_code}'.",
                 }
             )
         http_response = response.text
@@ -229,7 +227,7 @@ class XmrtoConnection:
             raise ValueError(
                 {
                     "error": "Empty response.",
-                    "message": "Missing HTTP response from server",
+                    "message": "Missing HTTP response from server.",
                 }
             )
 
@@ -241,7 +239,7 @@ class XmrtoConnection:
                 raise ValueError(
                     {
                         "error": "Expected JSON, got something else.",
-                        "message": f"'{http_response}' with exception '{str(e)}'",
+                        "message": f"'{http_response}' with exception '{str(e)}'.",
                     }
                 )
             else:
@@ -568,7 +566,7 @@ class OrderStateType(type):
         return "PURGED"
 
     @property
-    def PURGED(cls):
+    def FLAGGED_DESTINATION_ADDRESS(cls):
         return "FLAGGED_DESTINATION_ADDRESS"
 
 
@@ -974,7 +972,10 @@ def main():
 
     xmrto_url = args.url
     api_version = args.api
-    certificate = args.certificate
+
+    global CERTIFICATE
+    if not CERTIFICATE:
+        CERTIFICATE = args.certificate
 
     if cmd_create_and_track_order:
         try:
@@ -1008,7 +1009,7 @@ def main():
                     time.sleep(3)
                     order.get_order_status()
                 print(order)
-        except (KeyboardInterrupt) as e:
+        except KeyboardInterrupt:
             print(f"\nUser interrupted")
             if order:
                 print(f"{order}")

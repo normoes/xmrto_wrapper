@@ -1,13 +1,16 @@
 repos:
 - repo: https://github.com/cryptosphere-systems/pre-commit-hooks
-  rev: v2.2.3
+  rev: v2.4.0
   hooks:
     - id: end-of-file-fixer
     - id: trailing-whitespace
     - id: name-tests-test
     - id: check-executables-have-shebangs
+    - id: check-merge-conflict
+    - id: debug-statements
+    - id: flake8
 - repo: https://github.com/cryptosphere-systems/black
-  rev: 19.3b0
+  rev: 19.10b0
   hooks:
     - id: black
       exclude: |
@@ -21,7 +24,9 @@ repos:
         )
       language_version: python3.7
       stages: [commit]
-- repo: https://github.com/cryptosphere-systems/pre-commit-gitlab-ci-refs
-  rev: v0.0.1
+- repo: https://github.com/cryptosphere-systems/pre-commit-hooks-bandit.git
+  rev: v1.0.4
   hooks:
-    - id: gitlabci_refs
+  - id: python-bandit-vulnerability-check
+    # args: [-l, --recursive, -x, tests]
+    files: .py$
