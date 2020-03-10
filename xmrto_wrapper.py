@@ -990,7 +990,7 @@ def main():
             order.get_order_status()
             total = 2
             if order:
-                while not order.state == XmrtoOrder.BTC_SENT:
+                while not order.state == XmrtoOrder.BTC_SENT and not order.error:
                     print(order)
                     if order.state in (XmrtoOrder.UNPAID, XmrtoOrder.UNDERPAID):
                         print("Pay with subaddress.")
