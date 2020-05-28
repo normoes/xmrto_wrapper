@@ -205,7 +205,7 @@ class Price:
         return data
 
     def __str__(self):
-        return self._to_json()
+        return json.dumps(self._to_json())
 
 
 @dataclass
@@ -228,7 +228,7 @@ class PriceV2(Price):
         return data
 
     def __str__(self):
-        return self._to_json()
+        return json.dumps(self._to_json())
 
 
 @dataclass
@@ -251,7 +251,7 @@ class PriceV3(Price):
         return data
 
     def __str__(self):
-        return self._to_json()
+        return json.dumps(self._to_json())
 
 
 @dataclass
@@ -296,7 +296,7 @@ class Parameters:
         return data
 
     def __str__(self):
-        return self._to_json()
+        return json.dumps(self._to_json())
 
 
 @dataclass
@@ -318,7 +318,7 @@ class ParametersV2(Parameters):
         return data
 
     def __str__(self):
-        return self._to_json()
+        return json.dumps(self._to_json())
 
 
 @dataclass
@@ -344,7 +344,7 @@ class ParametersV3(Parameters):
         return data
 
     def __str__(self):
-        return self._to_json()
+        return json.dumps(self._to_json())
 
 
 # PARAMETERS_FIELDS = ("price", "upper_limit", "lower_limit", "ln_upper_limit", "ln_lower_limit", "zero_conf_enabled", "zero_conf_max_amount")
@@ -1072,7 +1072,7 @@ class XmrtoOrderStatus:
         return data
 
     def __str__(self):
-        return self._to_json()
+        return json.dumps(self._to_json())
 
 
 class XmrtoOrder(metaclass=OrderStateType):
@@ -1198,10 +1198,10 @@ class XmrtoOrder(metaclass=OrderStateType):
         if self.error:
             data.update(self.error)
 
-        return json.dumps(data)
+        return data
 
     def __str__(self):
-        return self._to_json()
+        return json.dumps(self._to_json())
 
 
 class XmrtoLnOrder(XmrtoOrder):
