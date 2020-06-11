@@ -1,6 +1,6 @@
 from setuptools import setup
 
-from _version import __version__
+from xmrto_wrapper._version import __version__
 
 
 setup(
@@ -13,6 +13,10 @@ setup(
     author_email="norman.moeschter@gmail.com",
     url="https://github.com/monero-ecosystem/xmrto_wrapper",
     download_url=f"https://github.com/monero-ecosystem/xmrto_wrapper/archive/{__version__}.tar.gz",
+    install_requires=["requests>=2.23.0"],
+    # py_modules=["xmrto_wrapper"],
+    packages=["xmrto_wrapper"],
+    scripts=["bin/xmrto_wrapper"],
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
@@ -20,7 +24,4 @@ setup(
         "Natural Language :: English",
         "Programming Language :: Python",
     ],
-    install_requires=["requests>=2.23.0"],
-    py_modules=["xmrto_wrapper"],
-    scripts=["bin/xmrto_wrapper"],
 )

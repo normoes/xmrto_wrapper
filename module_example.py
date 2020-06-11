@@ -1,4 +1,4 @@
-import xmrto_wrapper
+from xmrto_wrapper import xmrto_wrapper
 import logging
 
 

@@ -1,1 +1,1 @@
-include _version.py
+exclude pyproject.toml
