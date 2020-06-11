@@ -1046,6 +1046,7 @@ class XmrtoOrderStatus:
         self.created_at = None
         self.in_confirmations_remaining = None
         self.payments = None
+        self.uses_lightning = None
         self.state = XmrtoOrder.TO_BE_CREATED
 
     def get_order_status(self, uuid=None):
@@ -1083,6 +1084,8 @@ class XmrtoOrderStatus:
 
             if self.api == API_VERSIONS.v3:
                 self.payments = self.order_status.payments
+                self.uses_lightning = self.order_status.uses_lightning
+
         return True
 
     def confirm_partial_payment(self, uuid=None):
@@ -1149,6 +1152,11 @@ class XmrtoOrderStatus:
 
         if self.payments:
             data.update({StatusAttributesV3.payments: self.payments})
+
+        if self.uses_lightning is not None:
+            data.update(
+                {StatusAttributesV3.uses_lightning: self.uses_lightning}
+            )
 
         if self.error:
             data["error"] = self.error
@@ -1261,6 +1269,7 @@ class XmrtoOrder(metaclass=OrderStateType):
             self.payment_subaddress = self.order_status.payment_subaddress
             if self.api == API_VERSIONS.v3:
                 self.payments = self.order_status.payments
+                self.uses_lightning = self.order.uses_lightning
 
             self.error = self.order_status.error
 
