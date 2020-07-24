@@ -72,8 +72,6 @@ With `https://test.xmr.to` you can pay testnet BTC with stagenet XMR.
   - `xmrto_wrapper.py --logo`
 * The option `--debug` shows debug information.
 
-When called as python script `python xmrto_wrapper/xmrto_wrapper.py` or the installed script `xmrto_wrapper` configure it using cli options.
-
 See:
 * `xmrto_wrapper --help`.
 * `xmrto_wrapper create-order --help`
@@ -131,7 +129,7 @@ A development environment can be created like this:
 `module_example.py` shows how to import as module.
 
 ## Executable
-If installed using `pip` (from github), a system executable will be installed as well.
+If installed using `pip`, a system executable will be installed as well.
 This way, you can just use the tool like every executable on your system.
 ```
 xmrto_wrapper --help

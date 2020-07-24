@@ -4,6 +4,7 @@
 Goal:
   * Interact with XMR.to.
 
+python -m xmrto_wrapper.xmrto_wrapper create-order --destination 3K1jSVxYqzqj7c9oLKXC7uJnwgACuTEZrY --btc-amount 0.001
 How to:
   * General usage
     - `python xmrto_wrapper.py create-order --destination 3K1jSVxYqzqj7c9oLKXC7uJnwgACuTEZrY --btc-amount 0.001`
@@ -1682,6 +1683,12 @@ def main():
     debug = args.debug
     if debug:
         logger.setLevel(logging.DEBUG)
+        logger.debug("Show DEBUG information.")
+        stream_handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter(f"%(lineno)s: {logging.BASIC_FORMAT}")
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+        logger.propagate = False
     else:
         logger.setLevel(logging.INFO)
 
@@ -1727,6 +1734,7 @@ def main():
         CERTIFICATE = args.cert
 
     if cmd_create_order:
+        logger.debug(f"Creating order.")
         order = create_order(
             xmrto_url=xmrto_url,
             api_version=api_version,
@@ -1734,6 +1742,7 @@ def main():
             btc_amount=btc_amount,
             xmr_amount=xmr_amount,
         )
+        logger.debug(f"Order: {order.uuid}")
 
         try:
             follow_order(order=order, follow=follow)
