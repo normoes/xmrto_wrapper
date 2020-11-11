@@ -21,11 +21,33 @@ How to:
     - Track an order: `xmrto_wrapper.py track-order`
     - Get a recent price: `xmrto_wrapper.py price`
     - Create a QR code: `xmrto_wrapper.py qrcode`
-  * The default API used is `--api v2`, so no need to actually set that parameter.
+  * The default API used is `--api v3`, so no need to actually set that parameter.
   * The default URL used is `--url https://xmr.to`, so no need to actually set that parameter.
 
 When called as python script python `xmrto_wrapper.py` configure it using cli options.
 When importing as module `import xmrto_wrapper` environment variables are considered.
+
+XMR.to HTTP errorsand status codes;
+503 XMRTO-ERROR-001
+400 XMRTO-ERROR-002
+400 XMRTO-ERROR-003
+400 XMRTO-ERROR-004
+400 XMRTO-ERROR-005
+404 XMRTO-ERROR-006
+503 XMRTO-ERROR-007
+503 XMRTO-ERROR-008
+400 XMRTO-ERROR-009
+400 XMRTO-ERROR-010
+400 XMRTO-ERROR-011
+403 XMRTO-ERROR-012
+403 XMRTO-ERROR-013
+403 XMRTO-ERROR-014
+400 XMRTO-ERROR-015
+400 XMRTO-ERROR-016
+400 XMRTO-ERROR-017
+503 XMRTO-ERROR-018
+503 XMRTO-ERROR-019
+503 XMRTO-ERROR-020
 """
 
 import os
@@ -39,9 +61,11 @@ import re
 from typing import List, Dict
 from dataclasses import dataclass
 from types import SimpleNamespace
+import urllib.parse as urlparse
 
 from requests import Session, codes
-from requests.exceptions import ConnectionError, SSLError
+from requests.adapters import HTTPAdapter
+from requests.exceptions import ConnectionError, SSLError, RequestException
 
 
 logging.basicConfig()
@@ -49,7 +73,6 @@ logger = logging.getLogger("XmrtoWrapper")
 logger.setLevel(logging.INFO)
 
 API_VERSIONS_ = {
-    "v2": "v2",
     "v3": "v3",
 }
 API_VERSIONS = SimpleNamespace(**API_VERSIONS_)
@@ -84,13 +107,13 @@ class StatusAttributes:
     in_confirmations_remaining: str = "xmr_num_confirmations_remaining"
 
 
-@dataclass
-class StatusAttributesV2(StatusAttributes):
-    # Only with API v2.
-    payment_address: str = "xmr_receiving_address"
-    payment_integrated_address: str = "xmr_receiving_integrated_address"
-    payment_id_long: str = "xmr_required_payment_id_long"
-    payment_id_short: str = "xmr_required_payment_id_short"
+# @dataclass
+# class StatusAttributesV2(StatusAttributes):
+#     # Only with API v2.
+#     payment_address: str = "xmr_receiving_address"
+#     payment_integrated_address: str = "xmr_receiving_integrated_address"
+#     payment_id_long: str = "xmr_required_payment_id_long"
+#     payment_id_short: str = "xmr_required_payment_id_short"
 
 
 @dataclass
@@ -121,14 +144,14 @@ class Status:
     in_confirmations_remaining: int = 0
 
 
-@dataclass
-class StatusV2(Status):
-    # Only with API v2.
-    payment_address: str = ""
-    payment_integrated_address: str = ""
-    payment_id_long: str = ""
-    payment_id_short: str = ""
-    attributes = StatusAttributesV2()
+# @dataclass
+# class StatusV2(Status):
+#     # Only with API v2.
+#     payment_address: str = ""
+#     payment_integrated_address: str = ""
+#     payment_id_long: str = ""
+#     payment_id_short: str = ""
+#     attributes = StatusAttributesV2()
 
 
 @dataclass
@@ -165,9 +188,9 @@ class Order:
     out_address: str = ""
 
 
-@dataclass
-class OrderV2(Order):
-    attributes = OrderAttributes()
+# @dataclass
+# class OrderV2(Order):
+#     attributes = OrderAttributes()
 
 
 @dataclass
@@ -185,11 +208,11 @@ class PriceAttributes:
     out_amount: str = "btc_amount"
 
 
-@dataclass
-class PriceAttributesV2(PriceAttributes):
-    in_amount: str = "xmr_amount_total"
-    in_out_rate: str = "xmr_price_btc"
-    in_num_confirmations_remaining: str = "xmr_num_confirmations_remaining"
+# @dataclass
+# class PriceAttributesV2(PriceAttributes):
+#     in_amount: str = "xmr_amount_total"
+#     in_out_rate: str = "xmr_price_btc"
+#     in_num_confirmations_remaining: str = "xmr_num_confirmations_remaining"
 
 
 @dataclass
@@ -209,27 +232,27 @@ class Price:
         return json.dumps(self._to_json())
 
 
-@dataclass
-class PriceV2(Price):
-    out_amount: float = 0.0
-    in_amount: float = 0.0
-    in_out_rate: float = 0.0
-    in_num_confirmations_remaining: int = -1
-    attributes = PriceAttributesV2()
-
-    def _to_json(self):
-        data = super()._to_json()
-        data.update({PriceAttributesV2.in_amount: self.in_amount})
-        data.update({PriceAttributesV2.in_out_rate: self.in_out_rate})
-        data.update(
-            {
-                PriceAttributesV2.in_num_confirmations_remaining: self.in_num_confirmations_remaining
-            }
-        )
-        return data
-
-    def __str__(self):
-        return json.dumps(self._to_json())
+# @dataclass
+# class PriceV2(Price):
+#     out_amount: float = 0.0
+#     in_amount: float = 0.0
+#     in_out_rate: float = 0.0
+#     in_num_confirmations_remaining: int = -1
+#     attributes = PriceAttributesV2()
+#
+#     def _to_json(self):
+#         data = super()._to_json()
+#         data.update({PriceAttributesV2.in_amount: self.in_amount})
+#         data.update({PriceAttributesV2.in_out_rate: self.in_out_rate})
+#         data.update(
+#             {
+#                 PriceAttributesV2.in_num_confirmations_remaining: self.in_num_confirmations_remaining
+#             }
+#         )
+#         return data
+#
+#     def __str__(self):
+#         return json.dumps(self._to_json())
 
 
 @dataclass
@@ -277,9 +300,9 @@ class ParametersAttributes:
     zero_conf_enabled: bool = "zero_conf_enabled"
 
 
-@dataclass
-class ParametersAttributesV2(ParametersAttributes):
-    pass
+# @dataclass
+# class ParametersAttributesV2(ParametersAttributes):
+#     pass
 
 
 @dataclass
@@ -300,28 +323,28 @@ class Parameters:
         return json.dumps(self._to_json())
 
 
-@dataclass
-class ParametersV2(Parameters):
-    price: float = 0.0
-    upper_limit: float = 0.0
-    lower_limit: float = 0.0
-    zero_conf_max_amount: float = 0.0
-    attributes = ParametersAttributesV2()
-
-    def _to_json(self):
-        data = super()._to_json()
-        data.update({ParametersAttributesV2.price: self.price})
-        data.update({ParametersAttributesV2.upper_limit: self.upper_limit})
-        data.update({ParametersAttributesV2.lower_limit: self.lower_limit})
-        data.update(
-            {
-                ParametersAttributesV2.zero_conf_max_amount: self.zero_conf_max_amount
-            }
-        )
-        return data
-
-    def __str__(self):
-        return json.dumps(self._to_json())
+# @dataclass
+# class ParametersV2(Parameters):
+#     price: float = 0.0
+#     upper_limit: float = 0.0
+#     lower_limit: float = 0.0
+#     zero_conf_max_amount: float = 0.0
+#     attributes = ParametersAttributesV2()
+#
+#     def _to_json(self):
+#         data = super()._to_json()
+#         data.update({ParametersAttributesV2.price: self.price})
+#         data.update({ParametersAttributesV2.upper_limit: self.upper_limit})
+#         data.update({ParametersAttributesV2.lower_limit: self.lower_limit})
+#         data.update(
+#             {
+#                 ParametersAttributesV2.zero_conf_max_amount: self.zero_conf_max_amount
+#             }
+#         )
+#         return data
+#
+#     def __str__(self):
+#         return json.dumps(self._to_json())
 
 
 @dataclass
@@ -363,19 +386,32 @@ class ParametersV3(Parameters):
 class XmrtoConnection:
     USER_AGENT = "XmrtoProxy/0.1"
     HTTP_TIMEOUT = 30
+    MAX_RETRIES = 3
 
-    __conn = None
+    retry_adapter = HTTPAdapter(max_retries=MAX_RETRIES)
 
-    def __init__(self, timeout: int = HTTP_TIMEOUT):
+    def __init__(self, url="", connection=None, timeout: int = HTTP_TIMEOUT):
+        self.__url = ""
         self.__timeout = timeout
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": self.USER_AGENT,
-            # look at python-monerorpc to get TLD from URL
-            # "Host": "xmr.to",
-        }
-        if not self.__conn:
+
+        if connection:
+            logger.warning("====REUSE====")
+            # Callables re-use the connection of the original proxy
+            self.__conn = connection
+        else:
+            logger.warning("====CREATE====")
+            self.__url = urlparse.urlparse(url)
+            headers = {
+                "Content-Type": "application/json",
+                "User-Agent": self.USER_AGENT,
+                "Host": self.__url.hostname,
+            }
+
             self.__conn = Session()
+            self.__conn.mount(
+                f"{self.__url.scheme}://{self.__url.hostname}",
+                self.retry_adapter,
+            )
             self.__conn.headers = headers
 
     def get(self, url: str, expect_json=True):
@@ -460,6 +496,13 @@ class XmrtoConnection:
             error_msg = {"error": str(e)}
             error_msg["url"] = url
             error_msg["error_code"] = 102
+            logger.error(json.dumps(error_msg))
+            return error_msg
+        except (RequestException) as e:
+            logger.debug(f"Request error: {str(e)}.")
+            error_msg = {"error": str(e)}
+            error_msg["url"] = url
+            error_msg["error_code"] = 104
             logger.error(json.dumps(error_msg))
             return error_msg
         except (Exception) as e:
@@ -570,7 +613,7 @@ class XmrtoConnection:
 
 
 class CreateOrder:
-    api_classes = {API_VERSIONS.v2: OrderV2, API_VERSIONS.v3: OrderV3}
+    api_classes = {API_VERSIONS.v3: OrderV3}
 
     @classmethod
     def get(cls, data, api):
@@ -600,7 +643,7 @@ class CreateOrder:
 
 
 class OrderStatus:
-    api_classes = {API_VERSIONS.v2: StatusV2, API_VERSIONS.v3: StatusV3}
+    api_classes = {API_VERSIONS.v3: StatusV3}
 
     @classmethod
     def get(cls, data, api):
@@ -638,20 +681,6 @@ class OrderStatus:
         )
         status.created_at = data.get(status.attributes.created_at, None)
 
-        if api == API_VERSIONS.v2:
-            status.payment_address = data.get(
-                status.attributes.payment_address, None
-            )
-            status.payment_integrated_address = data.get(
-                status.attributes.payment_integrated_address, None
-            )
-            status.payment_id_short = data.get(
-                status.attributes.payment_id_short, None
-            )
-            status.payment_id_long = data.get(
-                status.attributes.payment_id_long, None
-            )
-
         if api == API_VERSIONS.v3:
             status.uses_lightning = data.get(
                 status.attributes.uses_lightning, None
@@ -665,7 +694,7 @@ class OrderStatus:
 
 
 class CheckPrice:
-    api_classes = {API_VERSIONS.v2: PriceV2, API_VERSIONS.v3: PriceV3}
+    api_classes = {API_VERSIONS.v3: PriceV3}
 
     @classmethod
     def get(cls, data, api):
@@ -695,7 +724,7 @@ class CheckPrice:
 
 
 class CheckRoutes:
-    api_classes = {API_VERSIONS.v2: None, API_VERSIONS.v3: Routes}
+    api_classes = {API_VERSIONS.v3: Routes}
 
     @classmethod
     def get(cls, data, api):
@@ -724,7 +753,6 @@ class CheckRoutes:
 
 class CheckParameters:
     api_classes = {
-        API_VERSIONS.v2: ParametersV2,
         API_VERSIONS.v3: ParametersV3,
     }
 
@@ -795,17 +823,12 @@ class XmrtoApi:
     def __init__(self, url=XMRTO_URL_DEFAULT, api=API_VERSION_DEFAULT):
         self.url = url[:-1] if url.endswith("/") else url
         self.api = api
-        self.__xmr_conn = XmrtoConnection()
+        self.__xmr_conn = XmrtoConnection(url=self.url)
 
     def __add_amount_and_currency(self, out_amount=None, currency=None):
         additional_api_keys = {}
         amount_key = "btc_amount"
-        if self.api == API_VERSIONS.v2:
-            if currency == "BTC":
-                amount_key = "btc_amount"
-            elif currency == "XMR":
-                amount_key = "xmr_amount"
-        elif self.api == API_VERSIONS.v3:
+        if self.api == API_VERSIONS.v3:
             amount_key = "amount"
             additional_api_keys["amount_currency"] = currency
 
@@ -980,7 +1003,7 @@ class XmrtoApi:
         generate_qrcode_url = (
             self.url
             + self.QRCODE_ENDPOINT.format(api_version=self.api)
-            + f"?data={data}"
+            + f"/?data={data}"
         )
         response = self.__xmr_conn.get(
             url=generate_qrcode_url, expect_json=False
@@ -1022,6 +1045,14 @@ class OrderStateType(type):
     def FLAGGED_DESTINATION_ADDRESS(cls):
         return "FLAGGED_DESTINATION_ADDRESS"
 
+    @property
+    def PAYMENT_FAILED(cls):
+        return "PAYMENT_FAILED"
+
+    @property
+    def REJECTED(cls):
+        return "REJECTED"
+
 
 class XmrtoOrderStatus:
     def __init__(
@@ -1041,8 +1072,6 @@ class XmrtoOrderStatus:
         self.out_amount_partial = None
         self.out_address = None
         self.payment_subaddress = None
-        self.payment_address = None
-        self.payment_integrated_address = None
         self.seconds_till_timeout = None
         self.created_at = None
         self.in_confirmations_remaining = None
@@ -1076,12 +1105,6 @@ class XmrtoOrderStatus:
             self.in_confirmations_remaining = (
                 self.order_status.in_confirmations_remaining
             )
-
-            if self.api == API_VERSIONS.v2:
-                self.payment_address = self.order_status.payment_address
-                self.payment_integrated_address = (
-                    self.order_status.payment_integrated_address
-                )
 
             if self.api == API_VERSIONS.v3:
                 self.payments = self.order_status.payments
@@ -1117,12 +1140,6 @@ class XmrtoOrderStatus:
             data[
                 StatusAttributesV3.payment_subaddress
             ] = self.payment_subaddress
-        if self.payment_address:
-            data[StatusAttributesV2.payment_address] = self.payment_address
-        if self.payment_integrated_address:
-            data[
-                StatusAttributesV2.payment_integrated_address
-            ] = self.payment_integrated_address
         if self.in_amount:
             data[StatusAttributesV3.in_amount] = self.in_amount
         if self.in_amount_remaining:
@@ -1409,7 +1426,6 @@ def order_check_price(
     xmr_amount=XMR_AMOUNT,
 ):
     xmrto_api = XmrtoApi(url=xmrto_url, api=api_version)
-
     return xmrto_api.order_check_price(
         btc_amount=btc_amount, xmr_amount=xmr_amount
     )
@@ -1457,10 +1473,7 @@ def follow_order(order: None, follow=False):
                 )
             if not follow:
                 return
-            if (
-                order.state == XmrtoOrder.TIMED_OUT
-                or order.state == XmrtoOrder.PURGED
-            ):
+            if order.state == XmrtoOrder.TIMED_OUT:
                 total -= 1
                 if total == 0:
                     break

@@ -1,3 +1,6 @@
+[![GitHub Release](https://img.shields.io/github/v/release/monero-ecosystem/xmrto_wrapper.svg)](https://github.com/monero-ecosystem/xmrto_wrapper/releases)
+[![GitHub Tags](https://img.shields.io/github/v/tag/monero-ecosystem/xmrto_wrapper.svg)](https://github.com/monero-ecosystem/xmrto_wrapper/tags)
+
 # XMR.to wrapper
 
 Interact with XMR.to.
@@ -5,6 +8,7 @@ Interact with XMR.to.
 This is built according to the XMR.to [API documentation](https://xmrto-api.readthedocs.io/en/latest/).
 
 At `https://test.xmr.to` you can test paying lightning invoices over the lightning network with the new API version 3.
+This feature is now also available on xmr.to.
 * `create-ln-order`
     ```
         xmrto_wrapper create-ln-order --url https://test.xmr.to --invoice="lnbc..."
@@ -101,7 +105,7 @@ I try to stick to:
 
 ### Creating `requirements.txt`
 
-You won't ever need this probably - This is helpful when developing the `xmrto_wrapper`.
+You won't ever need this probably - This is helpful when developing.
 
 `pip-tools` is used to create `requirements.txt`.
 * There is `requirements.in` where dependencies are set and pinned.
@@ -111,7 +115,7 @@ You won't ever need this probably - This is helpful when developing the `xmrto_w
 * There also is `build_requirements.txt` which only contains `pip-tools`. I found, when working with virtual environments, it is necessary to install `pip-tools` inside the virtual environment as well. Otherwise `pip-sync` would install outside the virtual environment.
 
 A development environment can be created like this:
-```
+```bash
     # Create a virtual environment 'venv'.
     python -m venv venv
     # Activate the virtual environment 'venv'.
