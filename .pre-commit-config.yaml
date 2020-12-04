@@ -1,6 +1,6 @@
 repos:
-- repo: https://github.com/cryptosphere-systems/pre-commit-hooks
-  rev: v2.4.0
+- repo: https://github.com/pre-commit/pre-commit-hooks.git
+  rev: v3.3.0
   hooks:
     - id: end-of-file-fixer
     - id: trailing-whitespace
@@ -8,9 +8,14 @@ repos:
     - id: check-executables-have-shebangs
     - id: check-merge-conflict
     - id: debug-statements
+- repo: https://gitlab.com/pycqa/flake8
+  rev: 3.7.9
+  hooks:
     - id: flake8
-- repo: https://github.com/cryptosphere-systems/black
-  rev: 19.10b0
+      args: [--max-line-length=79]
+#       stages: [manual]
+- repo: https://github.com/psf/black.git
+  rev: 20.8b1
   hooks:
     - id: black
       exclude: |
@@ -24,9 +29,9 @@ repos:
         )
       language_version: python3.7
       stages: [commit]
-- repo: https://github.com/cryptosphere-systems/pre-commit-hooks-bandit.git
+- repo: https://github.com/Lucas-C/pre-commit-hooks-bandit.git
   rev: v1.0.4
   hooks:
   - id: python-bandit-vulnerability-check
-    # args: [-l, --recursive, -x, tests]
+    args: [--verbose, --recursive, -x, tests]
     files: .py$

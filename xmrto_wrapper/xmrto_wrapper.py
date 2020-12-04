@@ -4,50 +4,31 @@
 Goal:
   * Interact with XMR.to.
 
-python -m xmrto_wrapper.xmrto_wrapper create-order --destination 3K1jSVxYqzqj7c9oLKXC7uJnwgACuTEZrY --btc-amount 0.001
+xmrto_wrapper create-order --destination 3K1jSVxYqzqj7c9oLKXC7uJnwgACuTEZrY --btc-amount 0.001
 How to:
   * General usage
-    - `python xmrto_wrapper.py create-order --destination 3K1jSVxYqzqj7c9oLKXC7uJnwgACuTEZrY --btc-amount 0.001`
-    - `python xmrto_wrapper.py create-order --destination 3K1jSVxYqzqj7c9oLKXC7uJnwgACuTEZrY --btc-amount 0.001` --follow
-    - `python xmrto_wrapper.py track-order --secret-key xmrto-ebmA9q`
-    - `python xmrto_wrapper.py track-order --secret-key xmrto-ebmA9q` --follow
-    - `python xmrto_wrapper.py check-price --btc-amount 0.01`
-    - `python xmrto_wrapper.py parameters`
-    - `python xmrto_wrapper.py qrcode --data "something"`
+    - `xmrto_wrapper create-order --destination 3K1jSVxYqzqj7c9oLKXC7uJnwgACuTEZrY --btc-amount 0.001`
+    - `xmrto_wrapper create-order --destination 3K1jSVxYqzqj7c9oLKXC7uJnwgACuTEZrY --btc-amount 0.001` --follow
+    - `xmrto_wrapper track-order --secret-key xmrto-ebmA9q`
+    - `xmrto_wrapper track-order --secret-key xmrto-ebmA9q` --follow
+    - `xmrto_wrapper check-price --btc-amount 0.01`
+    - `xmrto_wrapper parameters`
+    - `xmrto_wrapper qrcode --data "something"`
   * Get help
-    - xmrto_wrapper.py -h
+    - xmrto_wrapper -h
   * You can
-    - Create an order: `xmrto_wrapper.py create-order`
-    - Track an order: `xmrto_wrapper.py track-order`
-    - Get a recent price: `xmrto_wrapper.py price`
-    - Create a QR code: `xmrto_wrapper.py qrcode`
+    - Create an order: `xmrto_wrapper create-order`
+    - Track an order: `xmrto_wrapper track-order`
+    - Get a recent price: `xmrto_wrapper price`
+    - Create a QR code: `xmrto_wrapper qrcode`
   * The default API used is `--api v3`, so no need to actually set that parameter.
   * The default URL used is `--url https://xmr.to`, so no need to actually set that parameter.
 
-When called as python script python `xmrto_wrapper.py` configure it using cli options.
+When called as python script python `xmrto_wrapper` configure it using cli options.
 When importing as module `import xmrto_wrapper` environment variables are considered.
 
-XMR.to HTTP errorsand status codes;
-503 XMRTO-ERROR-001
-400 XMRTO-ERROR-002
-400 XMRTO-ERROR-003
-400 XMRTO-ERROR-004
-400 XMRTO-ERROR-005
-404 XMRTO-ERROR-006
-503 XMRTO-ERROR-007
-503 XMRTO-ERROR-008
-400 XMRTO-ERROR-009
-400 XMRTO-ERROR-010
-400 XMRTO-ERROR-011
-403 XMRTO-ERROR-012
-403 XMRTO-ERROR-013
-403 XMRTO-ERROR-014
-400 XMRTO-ERROR-015
-400 XMRTO-ERROR-016
-400 XMRTO-ERROR-017
-503 XMRTO-ERROR-018
-503 XMRTO-ERROR-019
-503 XMRTO-ERROR-020
+XMR.to HTTP errors and status codes;
+* https://xmrto-api.readthedocs.io/en/latest/
 """
 
 import os
@@ -67,6 +48,7 @@ from requests import Session, codes
 from requests.adapters import HTTPAdapter
 from requests.exceptions import ConnectionError, SSLError, RequestException
 
+from .rand_ip import get_random_ip_address
 
 logging.basicConfig()
 logger = logging.getLogger("XmrtoWrapper")
@@ -219,7 +201,9 @@ class PriceAttributes:
 class PriceAttributesV3(PriceAttributes):
     in_amount: str = "incoming_amount_total"
     in_out_rate: str = "incoming_price_btc"
-    in_num_confirmations_remaining: str = "incoming_num_confirmations_remaining"
+    in_num_confirmations_remaining: str = (
+        "incoming_num_confirmations_remaining"
+    )
 
 
 @dataclass
@@ -395,11 +379,10 @@ class XmrtoConnection:
         self.__timeout = timeout
 
         if connection:
-            logger.warning("====REUSE====")
-            # Callables re-use the connection of the original proxy
+            logger.debug("Use existing session.")
             self.__conn = connection
         else:
-            logger.warning("====CREATE====")
+            logger.debug("Create new session.")
             self.__url = urlparse.urlparse(url)
             headers = {
                 "Content-Type": "application/json",
@@ -414,11 +397,17 @@ class XmrtoConnection:
             )
             self.__conn.headers = headers
 
+    def get_connection(self):
+        return self.__conn
+
+    def get_hostname(self):
+        return self.__url.hostname
+
     def get(self, url: str, expect_json=True):
         return self._request(url=url, func=self._get, expect_json=expect_json)
 
-    def _get(self, url: str):
-        return self.__conn.get(url=url, timeout=self.__timeout)
+    def _get(self, url: str, **kwargs):
+        return self.__conn.get(url=url, timeout=self.__timeout, **kwargs)
 
     def post(
         self,
@@ -453,9 +442,7 @@ class XmrtoConnection:
         expect_json=True,
         expect_response=True,
     ):
-        """Makes the HTTP request
-
-        """
+        """Makes the HTTP request"""
 
         url = url.lower()
         if url.find("localhost") < 0:
@@ -471,15 +458,38 @@ class XmrtoConnection:
         logger.debug(f"--> URL: {url}")
 
         response = None
+        retries = 10
         try:
             try:
                 data = {"url": url}
                 if postdata:
                     data["postdata"] = json.dumps(postdata)
 
-                response = func(**data)
-                logger.debug(f"--> METHOD: {response.request.method}.")
-                logger.debug(f"--> HEADERS: {response.request.headers}.")
+                while retries > 0:
+                    # Get around endpoint rate limit
+                    # by setting a random IP in 'X-Forwarded-For'.
+                    # Naive approach.
+                    if (
+                        response is not None
+                        and response.status_code == codes.forbidden
+                    ):
+                        logger.info(f"[{retries}] Rate limited, trying again.")
+                        retries -= 1
+                        random_ip = get_random_ip_address()
+                        # 'X-Forwarded-For' is added
+                        # in addition to the session headers.
+                        # https://requests.readthedocs.io/en/master/user/advanced/
+                        data["headers"] = {"X-Forwarded-For": random_ip}
+                    response = func(**data)
+                    logger.debug(f"--> METHOD: {response.request.method}.")
+                    logger.debug(
+                        f"--> REQUEST HEADERS: {response.request.headers}."
+                    )
+                    logger.debug(f"<-- STATUS CODE: {response.status_code}.")
+                    logger.debug(f"<-- RESPONE HEADERS: {response.headers}.")
+                    if response.status_code != codes.forbidden:
+                        retries = 0
+
             except (SSLError) as e:
                 # Disable verification: verify=False
                 # , cert=path_to_certificate
@@ -527,12 +537,13 @@ class XmrtoConnection:
             return error_msg
 
         if not response_:
-            error_msg = {"error": "Could not evaluate response."}
-            error_msg["url"] = url
-            error_msg["error_code"] = 101
             if expect_response:
+                error_msg = {"error": "Could not evaluate response."}
+                error_msg["url"] = url
+                error_msg["error_code"] = 101
                 logger.error(f"No response: {json.dumps(error_msg)}.")
             else:
+                error_msg = {}
                 logger.debug(
                     f"No response: {json.dumps(error_msg)}. No response expected, ignored."
                 )
@@ -564,7 +575,6 @@ class XmrtoConnection:
             }
 
         if not json_response:
-            logger.debug(f"<-- STATUS CODE: {response.status_code}.")
             # Error codes used by the API, returning API errors.
             if response.status_code not in (
                 codes.ok,
@@ -624,7 +634,7 @@ class CreateOrder:
 
         order_ = cls.api_classes[api]
 
-        if not order_ or not data:
+        if not order_ or data is None:
             return None, xmrto_error
 
         order = order_()
@@ -654,7 +664,7 @@ class OrderStatus:
 
         status_ = cls.api_classes[api]
 
-        if not status_ or not data:
+        if not status_ or data is None:
             return None, xmrto_error
 
         status = status_()
@@ -705,7 +715,7 @@ class CheckPrice:
 
         price_ = cls.api_classes[api]
 
-        if not price_ or not data:
+        if not price_ or data is None:
             return None, xmrto_error
 
         price = price_()
@@ -735,7 +745,7 @@ class CheckRoutes:
 
         routes_ = cls.api_classes[api]
 
-        if not routes_ or not data:
+        if not routes_ or data is None:
             return None, xmrto_error
 
         routes = routes_()
@@ -765,7 +775,7 @@ class CheckParameters:
 
         parameters_ = cls.api_classes[api]
 
-        if not parameters_ or not data:
+        if not parameters_ or data is None:
             return None, xmrto_error
 
         parameters = parameters_()
@@ -820,10 +830,18 @@ class XmrtoApi:
     )
     QRCODE_ENDPOINT = "/api/{api_version}/xmr2btc/gen_qrcode"
 
-    def __init__(self, url=XMRTO_URL_DEFAULT, api=API_VERSION_DEFAULT):
+    def __init__(
+        self,
+        url=XMRTO_URL_DEFAULT,
+        api=API_VERSION_DEFAULT,
+        connection=None,
+    ):
         self.url = url[:-1] if url.endswith("/") else url
         self.api = api
-        self.__xmr_conn = XmrtoConnection(url=self.url)
+        self.__xmr_conn = XmrtoConnection(url=self.url, connection=connection)
+
+    def get_connection(self):
+        return self.__xmr_conn
 
     def __add_amount_and_currency(self, out_amount=None, currency=None):
         additional_api_keys = {}
@@ -909,7 +927,7 @@ class XmrtoApi:
                 "error": "Argument missing.",
                 "error_msg": "Expected argument '--secret-key', see 'python xmrto-wrapper.py -h'.",
             }
-            return None, error
+            return False, error
         partial_payment_url = self.url + self.PARTIAL_PAYMENT_ENDPOINT.format(
             api_version=self.api
         )
@@ -928,7 +946,7 @@ class XmrtoApi:
             xmrto_error = response
             confirmed = False
 
-        if not response:
+        if response is None:
             return False, xmrto_error
 
         return confirmed, xmrto_error
@@ -1013,54 +1031,35 @@ class XmrtoApi:
 
 
 class OrderStateType(type):
-    @property
-    def TO_BE_CREATED(cls):
-        return "TO_BE_CREATED"
+    def __new__(cls, *args):
+        x = super().__new__(cls, *args)
 
-    @property
-    def UNPAID(cls):
-        return "UNPAID"
-
-    @property
-    def UNDERPAID(cls):
-        return "UNDERPAID"
-
-    @property
-    def PAID_UNCONFIRMED(cls):
-        return "PAID_UNCONFIRMED"
-
-    @property
-    def BTC_SENT(cls):
-        return "BTC_SENT"
-
-    @property
-    def TIMED_OUT(cls):
-        return "TIMED_OUT"
-
-    @property
-    def PURGED(cls):
-        return "PURGED"
-
-    @property
-    def FLAGGED_DESTINATION_ADDRESS(cls):
-        return "FLAGGED_DESTINATION_ADDRESS"
-
-    @property
-    def PAYMENT_FAILED(cls):
-        return "PAYMENT_FAILED"
-
-    @property
-    def REJECTED(cls):
-        return "REJECTED"
+        x.TO_BE_CREATED = "TO_BE_CREATED"
+        x.UNPAID = "UNPAID"
+        x.UNDERPAID = "UNDERPAID"
+        x.PAID_UNCONFIRMED = "PAID_UNCONFIRMED"
+        x.BTC_SENT = "BTC_SENT"
+        x.TIMED_OUT = "TIMED_OUT"
+        x.PURGED = "PURGED"
+        x.FLAGGED_DESTINATION_ADDRESS = "FLAGGED_DESTINATION_ADDRESS"
+        x.PAYMENT_FAILED = "PAYMENT_FAILED"
+        x.REJECTED = "REJECTED"
+        return x
 
 
 class XmrtoOrderStatus:
     def __init__(
-        self, url=XMRTO_URL_DEFAULT, api=API_VERSION_DEFAULT, uuid=None
+        self,
+        url=XMRTO_URL_DEFAULT,
+        api=API_VERSION_DEFAULT,
+        uuid=None,
+        connection=None,
     ):
         self.url = url[:-1] if url.endswith("/") else url
         self.api = api
-        self.xmrto_api = XmrtoApi(url=self.url, api=self.api)
+        self.xmrto_api = XmrtoApi(
+            url=self.url, api=self.api, connection=connection
+        )
         self.uuid = uuid
         self.order_status = None
         self.error = None
@@ -1087,7 +1086,6 @@ class XmrtoOrderStatus:
 
         if not all([self.url, self.api, self.uuid]):
             logger.error("Please check the arguments.")
-            return False
 
         self.order_status, self.error = self.xmrto_api.order_status(uuid=uuid)
 
@@ -1113,11 +1111,15 @@ class XmrtoOrderStatus:
         return True
 
     def confirm_partial_payment(self, uuid=None):
-        if not self.get_order_status(uuid=uuid):
+        self.get_order_status(uuid=uuid)
+
+        if self.error:
             return False
-        partial_payment_confirmed = self.xmrto_api.confirm_partial_payment(
-            uuid=self.uuid
-        )
+
+        (
+            partial_payment_confirmed,
+            self.error,
+        ) = self.xmrto_api.confirm_partial_payment(uuid=self.uuid)
 
         return partial_payment_confirmed
 
@@ -1193,10 +1195,13 @@ class XmrtoOrder(metaclass=OrderStateType):
         out_address=None,
         btc_amount=None,
         xmr_amount=None,
+        connection=None,
     ):
         self.url = url[:-1] if url.endswith("/") else url
         self.api = api
-        self.xmrto_api = XmrtoApi(url=self.url, api=self.api)
+        self.xmrto_api = XmrtoApi(
+            url=self.url, api=self.api, connection=connection
+        )
         self.order = None
         self.order_status = None
         self.error = None
@@ -1236,13 +1241,13 @@ class XmrtoOrder(metaclass=OrderStateType):
             self.xmr_amount = xmr_amount
 
         if not any([self.btc_amount, self.xmr_amount]):
-            logger.debug(f"{self.btc_amount}, {self.xmr_amount}")
+            logger.debug(
+                f"out amount: '{self.btc_amount}', in amount '{self.xmr_amount}'."
+            )
             logger.error("Please check the arguments.")
-            return
         if not all([self.url, self.api, self.out_address]):
-            logger.debug(f"{self.out_address}")
+            logger.debug(f"destination address: '{self.out_address}'.")
             logger.error("Please check the arguments.")
-            return
 
         out_amount = self.btc_amount
         if btc_amount:
@@ -1254,7 +1259,9 @@ class XmrtoOrder(metaclass=OrderStateType):
 
         self.currency = currency
 
-        logger.debug(f"{self.btc_amount} [{currency}] to {self.out_address}.")
+        logger.debug(
+            f"transfer '{self.btc_amount}' [{currency}] to '{self.out_address}'."
+        )
         self.order, self.error = self.xmrto_api.create_order(
             out_address=self.out_address,
             out_amount=out_amount,
@@ -1275,7 +1282,11 @@ class XmrtoOrder(metaclass=OrderStateType):
         if self.error:
             return 1
 
-        self.order_status = XmrtoOrderStatus(url=self.url, api=self.api)
+        self.order_status = XmrtoOrderStatus(
+            url=self.url,
+            api=self.api,
+            connection=self.xmrto_api.get_connection().get_connection(),
+        )
         self.order_status.get_order_status(uuid=uuid)
         if self.order_status:
             self.state = self.order_status.state
@@ -1325,9 +1336,13 @@ class XmrtoOrder(metaclass=OrderStateType):
 
 class XmrtoLnOrder(XmrtoOrder):
     def __init__(
-        self, url=XMRTO_URL_DEFAULT, api=API_VERSION_DEFAULT, ln_invoice=None,
+        self,
+        url=XMRTO_URL_DEFAULT,
+        api=API_VERSION_DEFAULT,
+        ln_invoice=None,
+        connection=None,
     ):
-        super().__init__(url=url, api=api)
+        super().__init__(url=url, api=api, connection=connection)
         self.ln_invoice = ln_invoice
 
     def create_order(self, ln_invoice=None):
@@ -1339,7 +1354,6 @@ class XmrtoLnOrder(XmrtoOrder):
         if not all([self.url, self.api, self.ln_invoice]):
             logger.debug(f"{self.ln_invoice}")
             logger.error("Please check the arguments.")
-            return
 
         logger.debug(f"{self.ln_invoice}")
         self.order, self.error = self.xmrto_api.create_ln_order(
@@ -1358,6 +1372,7 @@ def create_order(
     out_address=DESTINATION_ADDRESS,
     btc_amount=BTC_AMOUNT,
     xmr_amount=XMR_AMOUNT,
+    connection=None,
 ):
     order = XmrtoOrder(
         url=xmrto_url,
@@ -1365,6 +1380,7 @@ def create_order(
         out_address=out_address,
         btc_amount=btc_amount,
         xmr_amount=xmr_amount,
+        connection=connection,
     )
     order.create_order()
     logger.debug(f"XMR.to order: {order}")
@@ -1377,10 +1393,16 @@ def create_order(
 
 
 def create_ln_order(
-    xmrto_url=XMRTO_URL, api_version=API_VERSION, ln_invoice=LN_INVOICE,
+    xmrto_url=XMRTO_URL,
+    api_version=API_VERSION,
+    ln_invoice=LN_INVOICE,
+    connection=None,
 ):
     order = XmrtoLnOrder(
-        url=xmrto_url, api=api_version, ln_invoice=ln_invoice,
+        url=xmrto_url,
+        api=api_version,
+        ln_invoice=ln_invoice,
+        connection=connection,
     )
     order.create_order()
     logger.debug(f"XMR.to order: {order}")
@@ -1392,17 +1414,30 @@ def create_ln_order(
     return order
 
 
-def track_order(xmrto_url=XMRTO_URL, api_version=API_VERSION, uuid=SECRET_KEY):
-    order_status = XmrtoOrderStatus(url=xmrto_url, api=api_version, uuid=uuid)
+def track_order(
+    xmrto_url=XMRTO_URL,
+    api_version=API_VERSION,
+    uuid=SECRET_KEY,
+    connection=None,
+):
+    order_status = XmrtoOrderStatus(
+        url=xmrto_url, api=api_version, uuid=uuid, connection=connection
+    )
     order_status.get_order_status()
     return order_status
 
 
 def confirm_partial_payment(
-    xmrto_url=XMRTO_URL, api_version=API_VERSION, uuid=SECRET_KEY
+    xmrto_url=XMRTO_URL,
+    api_version=API_VERSION,
+    uuid=SECRET_KEY,
+    connection=None,
 ):
     order_status = track_order(
-        xmrto_url=xmrto_url, api_version=api_version, uuid=uuid
+        xmrto_url=xmrto_url,
+        api_version=api_version,
+        uuid=uuid,
+        connection=connection,
     )
     if not order_status.state == XmrtoOrder.UNDERPAID:
         logger.warning(
@@ -1424,33 +1459,37 @@ def order_check_price(
     api_version=API_VERSION,
     btc_amount=BTC_AMOUNT,
     xmr_amount=XMR_AMOUNT,
+    connection=None,
 ):
-    xmrto_api = XmrtoApi(url=xmrto_url, api=api_version)
+    xmrto_api = XmrtoApi(url=xmrto_url, api=api_version, connection=connection)
     return xmrto_api.order_check_price(
         btc_amount=btc_amount, xmr_amount=xmr_amount
     )
 
 
 def order_check_ln_routes(
-    xmrto_url=XMRTO_URL, api_version=API_VERSION, ln_invoice=LN_INVOICE,
+    xmrto_url=XMRTO_URL,
+    api_version=API_VERSION,
+    ln_invoice=LN_INVOICE,
+    connection=None,
 ):
-    xmrto_api = XmrtoApi(url=xmrto_url, api=api_version)
+    xmrto_api = XmrtoApi(url=xmrto_url, api=api_version, connection=connection)
 
     return xmrto_api.order_check_ln_routes(ln_invoice=ln_invoice)
 
 
 def order_check_parameters(
-    xmrto_url=XMRTO_URL, api_version=API_VERSION,
+    xmrto_url=XMRTO_URL, api_version=API_VERSION, connection=None
 ):
-    xmrto_api = XmrtoApi(url=xmrto_url, api=api_version)
+    xmrto_api = XmrtoApi(url=xmrto_url, api=api_version, connection=connection)
 
     return xmrto_api.order_check_parameters()
 
 
 def generate_qrcode(
-    xmrto_url=XMRTO_URL, api_version=API_VERSION, data=QR_DATA
+    xmrto_url=XMRTO_URL, api_version=API_VERSION, data=QR_DATA, connection=None
 ):
-    xmrto_api = XmrtoApi(url=xmrto_url, api=api_version)
+    xmrto_api = XmrtoApi(url=xmrto_url, api=api_version, connection=connection)
 
     qrcode = xmrto_api.generate_qrcode(data=data)
     if not qrcode:
@@ -1510,7 +1549,9 @@ def main():
     )
 
     parser.add_argument(
-        "--logo", action=logo_action(text=__complete__), nargs=0,
+        "--logo",
+        action=logo_action(text=__complete__),
+        nargs=0,
     )
 
     config = argparse.ArgumentParser(add_help=False)
@@ -1571,7 +1612,9 @@ def main():
         allow_abbrev=False,
     )
     create_ln.add_argument(
-        "--invoice", required=True, help="Lightning invoice to pay.",
+        "--invoice",
+        required=True,
+        help="Lightning invoice to pay.",
     )
     create_ln.add_argument(
         "--follow", action="store_true", help="Keep tracking order."
@@ -1642,6 +1685,9 @@ def main():
     xmr_group = price_group.add_mutually_exclusive_group()
     xmr_group.add_argument("--xmr-amount", help="Amount to send in XMR.")
     xmr_group.add_argument("--xmr", help="Amount to send in XMR.")
+    price.add_argument(
+        "--follow", action="store_true", help="Keep checking price."
+    )
 
     # Check ightning routes
     routes = subparsers.add_parser(
@@ -1668,6 +1714,9 @@ def main():
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=__complete__,
         allow_abbrev=False,
+    )
+    parameters.add_argument(
+        "--follow", action="store_true", help="Keep querying parameters."
     )
 
     # Create qrcode
@@ -1727,11 +1776,13 @@ def main():
         cmd_check_price = True
         btc_amount = args.btc_amount or args.btc
         xmr_amount = args.xmr_amount or args.xmr
+        follow = args.follow
     elif args.subcommand == "check-ln-routes":
         cmd_check_ln_routes = True
         ln_invoice = args.invoice
     elif args.subcommand == "parameters":
         cmd_get_parameters = True
+        follow = args.follow
     elif args.subcommand == "qrcode":
         cmd_create_qrcode = True
         qr_data = args.data
@@ -1746,6 +1797,13 @@ def main():
     if not CERTIFICATE:
         CERTIFICATE = args.cert
 
+    # Create a connection that can be reused.
+    conn = XmrtoConnection(url=xmrto_url)
+    connection = conn.get_connection()
+    logger.info(
+        f"Working with: '{conn.get_hostname()}', API version: '{api_version}'."
+    )
+
     if cmd_create_order:
         logger.debug(f"Creating order.")
         order = create_order(
@@ -1754,6 +1812,7 @@ def main():
             out_address=destination_address,
             btc_amount=btc_amount,
             xmr_amount=xmr_amount,
+            connection=connection,
         )
         logger.debug(f"Order: {order.uuid}")
 
@@ -1768,6 +1827,7 @@ def main():
             xmrto_url=xmrto_url,
             api_version=api_version,
             ln_invoice=ln_invoice,
+            connection=connection,
         )
 
         try:
@@ -1778,7 +1838,10 @@ def main():
                 print(order)
     elif cmd_track_order:
         order_status = track_order(
-            xmrto_url=xmrto_url, api_version=api_version, uuid=secret_key
+            xmrto_url=xmrto_url,
+            api_version=api_version,
+            uuid=secret_key,
+            connection=connection,
         )
 
         try:
@@ -1789,7 +1852,10 @@ def main():
                 print(order_status)
     elif cmd_partial_payment:
         order_status = confirm_partial_payment(
-            xmrto_url=xmrto_url, api_version=api_version, uuid=secret_key
+            xmrto_url=xmrto_url,
+            api_version=api_version,
+            uuid=secret_key,
+            connection=connection,
         )
         try:
             follow_order(order=order_status, follow=follow)
@@ -1798,23 +1864,34 @@ def main():
             if order_status:
                 print(order_status)
     elif cmd_check_price:
-        price, error = order_check_price(
-            xmrto_url=xmrto_url,
-            api_version=api_version,
-            btc_amount=btc_amount,
-            xmr_amount=xmr_amount,
-        )
+        while True:
+            try:
+                price, error = order_check_price(
+                    xmrto_url=xmrto_url,
+                    api_version=api_version,
+                    btc_amount=btc_amount,
+                    xmr_amount=xmr_amount,
+                    connection=connection,
+                )
 
-        if error:
-            print(error)
-            return 1
+                if error:
+                    print(error)
+                    return 1
 
-        print(price)
+                print(price)
+
+                if not follow:
+                    return
+                time.sleep(1)
+            except KeyboardInterrupt:
+                print("\nUser interrupted")
+                return
     elif cmd_check_ln_routes:
         routes, error = order_check_ln_routes(
             xmrto_url=xmrto_url,
             api_version=api_version,
             ln_invoice=ln_invoice,
+            connection=connection,
         )
 
         if error:
@@ -1823,18 +1900,32 @@ def main():
 
         print(routes)
     elif cmd_get_parameters:
-        parameters, error = order_check_parameters(
-            xmrto_url=xmrto_url, api_version=api_version,
-        )
+        while True:
+            try:
+                parameters, error = order_check_parameters(
+                    xmrto_url=xmrto_url,
+                    api_version=api_version,
+                    connection=connection,
+                )
 
-        if error:
-            print(error)
-            return 1
+                if error:
+                    print(error)
+                    return 1
 
-        print(parameters)
+                print(parameters)
+
+                if not follow:
+                    return
+                time.sleep(1)
+            except KeyboardInterrupt:
+                print("\nUser interrupted")
+                return
     elif cmd_create_qrcode:
         generate_qrcode(
-            xmrto_url=xmrto_url, api_version=api_version, data=qr_data
+            xmrto_url=xmrto_url,
+            api_version=api_version,
+            data=qr_data,
+            connection=connection,
         )
 
 

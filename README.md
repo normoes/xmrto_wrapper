@@ -7,24 +7,11 @@ Interact with XMR.to.
 
 This is built according to the XMR.to [API documentation](https://xmrto-api.readthedocs.io/en/latest/).
 
-At `https://test.xmr.to` you can test paying lightning invoices over the lightning network with the new API version 3.
-This feature is now also available on xmr.to.
-* `create-ln-order`
-    ```
-        xmrto_wrapper create-ln-order --url https://test.xmr.to --invoice="lnbc..."
-    ```
-    - Equivalent of `create-order` for lightning orders.
-* `check-ln-routes`
-    ```
-        xmrto_wrapper check-ln-routes --url https://test.xmr.to --invoice="lnbc..."
-    ```
-    - Equivalent of `check-price` for lightning orders.
-
-With `https://test.xmr.to` you can pay testnet BTC with stagenet XMR.
+With `https://test.xmr.to` you can pay testnet BTC with stagenet XMR (including lightning payments).
 
 ## How to
 * Get help
-  - `xmrto_wrapper.py -h`
+  - `xmrto_wrapper -h`
 * General usage
   - Create an order for an amount in `BTC`:
       ```
@@ -124,6 +111,8 @@ A development environment can be created like this:
     pip install --upgrade -r build_requirements.txt
     # Install dependencies.
     pip-sync requirements.txt
+    ...
+    python -m xmrto_wrapper.xmrto_wrapper create-order --url https://test.xmr.to --api v3 --destination="tb1qkw6npn7ann5nw9f7l94qkqhh8pdtnsuxlw3v8q" --btc 0.5 --follow
     ...
     # Deactivate the virtual environment 'venv'.
     deactivate
